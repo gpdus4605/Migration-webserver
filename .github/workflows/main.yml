@@ -55,8 +55,8 @@ jobs:
           script: |
             # 배포 디렉터리로 이동합니다. (없으면 생성)
             # Git 저장소가 없다면 새로 clone 하고, 있다면 최신 코드를 pull 받습니다.
-            if [ ! -d "$HOME/onpremise" ]; then
-              git clone https://github.com/${{ github.repository }} ~/onpremise
+            if [ ! -d "$HOME/onpremise/.git" ]; then
+              git clone https://github.com/${{ github.repository }} "$HOME/onpremise"
             fi
             cd ~/onpremise
             git pull origin main
