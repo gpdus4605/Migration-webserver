@@ -12,7 +12,7 @@ services:
     volumes:
       # 로컬의 nginx 디렉터리를 컨테이너의 설정 디렉터리에 마운트합니다.
       - ./nginx:/etc/nginx/conf.d
-      # Let's Encrypt 인증서와 관련 파일을 저장할 볼륨을 추가합니다.
+      # Certbot과 공유할 볼륨을 마운트합니다.
       - certbot-etc:/etc/letsencrypt
       - certbot-var:/var/lib/letsencrypt
     depends_on:
@@ -62,3 +62,15 @@ volumes:
   # Certbot을 위한 볼륨을 정의합니다.
   certbot-etc:
   certbot-var:
+
+  # 4. Certbot 서비스 정의 (인증서 발급 및 갱신용)
+  certbot:
+    image: certbot/certbot
+    container_name: my-certbot
+    # entrypoint를 오버라이드하여 컨테이너가 바로 종료되지 않게 합니다.
+    # 12시간마다 sleep을 반복하여 컨테이너를 유지시킵니다. (갱신 주기와는 무관)
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do sleep 12h & wait $${!}; done;'"
+    volumes:
+      # Nginx와 동일한 볼륨을 마운트하여 인증서를 공유합니다.
+      - certbot-etc:/etc/letsencrypt
+      - certbot-var:/var/lib/letsencrypt

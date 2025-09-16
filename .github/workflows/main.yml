@@ -91,20 +91,12 @@ jobs:
               echo "### SSL certificate not found. Issuing new certificate..."
               
               # 1. 임시 설정 파일(default.conf.pre)을 사용하여 Nginx를 실행하고 80번 포트를 엽니다.
-              sudo cp nginx/default.conf.pre nginx/default.conf
-              sudo /usr/local/bin/docker-compose up -d --force-recreate nginx
-
-              # Certbot 실행 (webroot 방식). Nginx 컨테이너가 생성한 인증용 디렉터리를 마운트합니다.
-              sudo docker run --rm \
-                -v "onpremise_certbot-etc:/etc/letsencrypt" \
-                -v "onpremise_certbot-var:/var/lib/letsencrypt" \
-                -v "/var/lib/docker/volumes/onpremise_certbot-var/_data:/var/www/certbot" \ # Certbot이 생성한 파일을 Nginx가 읽을 수 있도록 공유
-                certbot/certbot certonly --webroot -w /var/www/certbot \
+              sudo /usr/local/bin/docker-compose run --rm certbot certonly --webroot -w /var/lib/letsencrypt/webroot \
                 --email ${{ secrets.CERTBOT_EMAIL }} -d ${{ secrets.DOMAIN_NAME }} --agree-tos -n
 
-              # 2. 최종 HTTPS 설정으로 되돌립니다. (git pull로 받아온 원본 default.conf를 사용)
-              # git checkout을 사용하여 원본 파일로 복원합니다.
-              git checkout -- nginx/default.conf
+              # 2. 임시 Nginx를 내립니다.
+              sudo /usr/local/bin/docker-compose down
+
             else
               echo "### SSL certificate found. Reloading Nginx..."
             fi
@@ -113,7 +105,7 @@ jobs:
             sudo /usr/local/bin/docker-compose up -d --force-recreate --remove-orphans
 
             # DB 마이그레이션을 실행합니다.
-            sudo /usr/local/bin/docker-compose exec api flask db upgrade
+            sudo /usr/local/bin/docker-compose run --rm api flask db upgrade
 
             # 사용하지 않는 오래된 Docker 이미지들을 정리하여 서버 용량을 확보합니다.
             echo "### Pruning old Docker images..."
