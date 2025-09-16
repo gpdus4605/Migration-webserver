@@ -78,9 +78,10 @@ jobs:
             
             # Docker Compose를 사용하여 컨테이너를 재시작합니다.
             # docker-compose v2를 사용하여 서비스를 재시작합니다.
+            # 새로 설치한 v2 바이너리를 전체 경로로 직접 호출합니다.
             echo "### Pulling latest images and restarting services..."
-            sudo docker compose pull
-            sudo docker compose up -d --force-recreate --remove-orphans
+            sudo /usr/local/bin/docker-compose pull
+            sudo /usr/local/bin/docker-compose up -d --force-recreate --remove-orphans
 
             # SSL 인증서가 없으면 Certbot을 실행하여 발급받습니다.
             if [ ! -f "/var/lib/docker/volumes/onpremise_certbot-etc/_data/live/${{ secrets.DOMAIN_NAME }}/fullchain.pem" ]; then
@@ -95,14 +96,14 @@ jobs:
                 --email ${{ secrets.CERTBOT_EMAIL }} -d ${{ secrets.DOMAIN_NAME }} --agree-tos -n
 
               # 인증서 발급 후 Nginx 설정을 다시 로드합니다.
-              sudo docker compose exec nginx nginx -s reload
+              sudo /usr/local/bin/docker-compose exec nginx nginx -s reload
             else
               echo "### SSL certificate found. Reloading Nginx..."
-              sudo docker compose exec nginx nginx -s reload
+              sudo /usr/local/bin/docker-compose exec nginx nginx -s reload
             fi
 
             # DB 마이그레이션을 실행합니다.
-            sudo docker compose exec api flask db upgrade
+            sudo /usr/local/bin/docker-compose exec api flask db upgrade
 
             # 사용하지 않는 오래된 Docker 이미지들을 정리하여 서버 용량을 확보합니다.
             echo "### Pruning old Docker images..."
