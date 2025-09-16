@@ -78,9 +78,12 @@ jobs:
             
             # Docker Compose를 사용하여 컨테이너를 재시작합니다.
             # docker-compose v2를 사용하여 서비스를 재시작합니다.
-            # 새로 설치한 v2 바이너리를 전체 경로로 직접 호출합니다.
+            # 새로 설치한 v2 바이너리를 전체 경로로 직접 호출하여 호환성 문제를 해결합니다.
             echo "### Pulling latest images and restarting services..."
-            sudo /usr/local/bin/docker-compose pull
+            
+            # 먼저 기존 컨테이너를 완전히 내립니다.
+            sudo /usr/local/bin/docker-compose down
+            
             sudo /usr/local/bin/docker-compose up -d --force-recreate --remove-orphans
 
             # SSL 인증서가 없으면 Certbot을 실행하여 발급받습니다.
