@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>미니 게시판</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; background-color: #f0f2f5; }
+        .header { background-color: white; padding: 10px 30px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 2em; }
+        .header h1 { margin: 0; font-size: 24px; }
+        .container { max-width: 800px; margin: auto; background-color: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .form-section { background-color: #fafafa; padding: 1.5em; border-radius: 5px; margin-bottom: 2em; }
+        .form-section h3 { margin-top: 0; }
+        input, textarea { width: calc(100% - 20px); padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        textarea { resize: vertical; min-height: 100px; }
+        button { padding: 10px 15px; border: none; background-color: #007bff; color: white; border-radius: 4px; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        .btn-secondary { background-color: #6c757d; }
+        .btn-secondary:hover { background-color: #5a6268; }
+        .btn-danger { background-color: #dc3545; }
+        .btn-danger:hover { background-color: #c82333; }
+        .post { border: 1px solid #e0e0e0; padding: 1em; margin-bottom: 1em; border-radius: 5px; }
+        .post h2 { margin-top: 0; }
+        .post-meta { font-size: 0.9em; color: #888; }
+        .post-content { margin-top: 1em; padding-top: 1em; border-top: 1px solid #f0f0f0; white-space: pre-wrap; }
+        .toggle-link { color: #007bff; cursor: pointer; text-decoration: underline; font-size: 0.9em; margin-top: 1em; display: inline-block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>미니 게시판</h1>
+            <div id="auth-buttons">
+                <!-- 로그인 상태에 따라 버튼이 변경됩니다 -->
+            </div>
+        </div>
+
+        <!-- 회원가입/로그인 폼 섹션 -->
+        <div id="guest-view">
+            <div class="form-section" id="login-section">
+                <h3>로그인</h3>
+                <form id="login-form">
+                    <input type="email" id="login-email" placeholder="이메일" required>
+                    <input type="password" id="login-password" placeholder="비밀번호" required>
+                    <button type="submit">로그인</button>
+                </form>
+                <a id="show-signup" class="toggle-link">아직 회원이 아니신가요? 회원가입</a>
+            </div>
+
+            <div class="form-section" id="signup-section" style="display: none;">
+                <h3>회원가입</h3>
+                <form id="signup-form">
+                    <input type="email" id="signup-email" placeholder="이메일" required>
+                    <input type="text" id="signup-username" placeholder="닉네임" required>
+                    <input type="password" id="signup-password" placeholder="비밀번호" required>
+                    <button type="submit">가입하기</button>
+                </form>
+                <a id="show-login" class="toggle-link">이미 회원이신가요? 로그인</a>
+            </div>
+        </div>
+
+        <!-- 로그인 후 보여지는 뷰 -->
+        <div id="user-view" style="display: none;">
+            <div class="form-section">
+                <h3>새 글 작성</h3>
+                <form id="post-form">
+                    <input type="text" id="post-title" placeholder="제목" required>
+                    <textarea id="post-content" placeholder="내용" required></textarea>
+                    <button type="submit">작성하기</button>
+                </form>
+            </div>
+        </div>
+
+        <h2>게시글 목록 (API 호출 결과)</h2>
+        <div id="post-list">
+            <p>게시글을 불러오는 중...</p>
+        </div>
+    </div>
+
+    <script>
+        // 상태 관리
+        let state = {
+            token: localStorage.getItem('accessToken'),
+            currentUser: null
+        };
+
+        // 토큰 디코딩 (간단 버전)
+        function decodeToken(token) {
+            if (!token) return null;
+            try {
+                return JSON.parse(atob(token.split('.')[1]));
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // 회원가입 폼 제출 처리
+        document.getElementById('signup-form').addEventListener('submit', function(event) {
+            event.preventDefault(); // 폼 기본 제출 동작 방지
+            const email = document.getElementById('signup-email').value;
+            const username = document.getElementById('signup-username').value;
+            const password = document.getElementById('signup-password').value;
+
+            fetch('/api/users/signup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, username, password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.userId) {
+                    alert('회원가입 성공! ID: ' + data.userId);
+                } else {
+                    alert('회원가입 실패: ' + data.message);
+                }
+            })
+            .catch(error => console.error('Signup error:', error));
+        });
+
+        // 로그인 폼 제출 처리
+        document.getElementById('login-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            fetch('/api/users/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.accessToken) {
+                    localStorage.setItem('accessToken', data.accessToken);
+                    localStorage.setItem('currentUser', JSON.stringify({ userId: data.userId, username: data.username }));
+                    state.token = data.accessToken;
+                    updateUI();
+                } else {
+                    alert('로그인 실패: ' + data.message);
+                }
+            })
+            .catch(error => console.error('Login error:', error));
+        });
+
+        // 게시글 목록 불러오기
+        function fetchPosts() {
+            fetch('/api/posts')
+                .then(response => response.json())
+                .then(posts => {
+                    const postListDiv = document.getElementById('post-list');
+                    if (posts.length === 0) {
+                        postListDiv.innerHTML = '<p>작성된 게시글이 없습니다.</p>';
+                        return;
+                    }
+
+                    let html = '';
+                    posts.forEach(post => {
+                        html += `
+                            <div class="post" id="post-${post.postId}">
+                                <h2>${post.title}</h2>
+                                <p class="post-meta">작성자: ${post.author} | 작성일: ${new Date(post.createdAt).toLocaleDateString()}</p>                                
+                                <div class="post-content" id="post-content-${post.postId}" style="display:none;"></div>
+                                <div class="post-actions">
+                                    <button class="btn-secondary" onclick="togglePostDetail(${post.postId})">상세보기</button>
+                                    ${state.currentUser && state.currentUser.username === post.author ? `<button onclick="editPost(${post.postId})">수정</button> <button class="btn-danger" onclick="deletePost(${post.postId})">삭제</button>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    postListDiv.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Error fetching posts:', error);
+                    document.getElementById('post-list').innerHTML = '<p>게시글을 불러오는 데 실패했습니다.</p>';
+                });
+        }
+
+        // UI 업데이트
+        function updateUI() {
+            state.token = localStorage.getItem('accessToken');
+            const userString = localStorage.getItem('currentUser');
+            state.currentUser = userString ? JSON.parse(userString) : null;
+
+            const guestView = document.getElementById('guest-view');
+            const userView = document.getElementById('user-view');
+            const authButtons = document.getElementById('auth-buttons');
+
+            if (state.token) {
+                guestView.style.display = 'none';
+                userView.style.display = 'block';
+                authButtons.innerHTML = '<button id="logout-button">로그아웃</button>';
+                document.getElementById('logout-button').addEventListener('click', () => {
+                    localStorage.removeItem('accessToken');
+                    state.token = null;
+                    state.currentUser = null;
+                    updateUI();
+                });
+            } else {
+                guestView.style.display = 'block';
+                userView.style.display = 'none';
+                authButtons.innerHTML = '';
+            }
+            fetchPosts(); // UI가 바뀔 때마다 게시글 목록을 새로고침하여 수정/삭제 버튼을 갱신
+        }
+
+        // 글 작성 처리
+        document.getElementById('post-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const title = document.getElementById('post-title').value;
+            const content = document.getElementById('post-content').value;
+
+            fetch('/api/posts', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${state.token}`
+                },
+                body: JSON.stringify({ title, content })
+            })
+            .then(response => {
+                if (response.ok) {
+                    alert('게시글 작성 성공!');
+                    document.getElementById('post-form').reset();
+                    fetchPosts();
+                } else {
+                    response.json().then(data => alert('작성 실패: ' + data.message));
+                }
+            });
+        });
+
+        // 글 삭제 처리
+        function deletePost(postId) {
+            if (!confirm('정말로 이 게시글을 삭제하시겠습니까?')) return;
+
+            fetch(`/api/posts/${postId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${state.token}` }
+            })
+            .then(response => {
+                if (response.status === 204) {
+                    alert('게시글이 삭제되었습니다.');
+                    fetchPosts();
+                } else {
+                    response.json().then(data => alert('삭제 실패: ' + data.message));
+                }
+            });
+        }
+
+        // (수정, 상세보기 기능은 복잡해지므로 간단한 alert으로 대체합니다)
+        async function editPost(postId) {
+            // 1. 기존 게시글 내용 가져오기
+            const response = await fetch(`/api/posts/${postId}`);
+            if (!response.ok) {
+                alert('게시글 정보를 불러오는 데 실패했습니다.');
+                return;
+            }
+            const post = await response.json();
+
+            // 2. prompt 창으로 새로운 내용 입력받기
+            const newTitle = prompt('새로운 제목을 입력하세요:', post.title);
+            if (newTitle === null) return; // 사용자가 취소한 경우
+
+            const newContent = prompt('새로운 내용을 입력하세요:', post.content);
+            if (newContent === null) return; // 사용자가 취소한 경우
+
+            // 3. 수정 API 호출
+            const editResponse = await fetch(`/api/posts/${postId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${state.token}` },
+                body: JSON.stringify({ title: newTitle, content: newContent })
+            });
+
+            if (editResponse.ok) {
+                alert('게시글이 성공적으로 수정되었습니다.');
+                fetchPosts(); // 목록 새로고침
+            } else {
+                const errorData = await editResponse.json();
+                alert('수정 실패: ' + errorData.message);
+            }
+        }
+
+        // 게시글 상세보기 토글
+        function togglePostDetail(postId) {
+            const contentDiv = document.getElementById(`post-content-${postId}`);
+            const isVisible = contentDiv.style.display === 'block';
+
+            if (isVisible) {
+                contentDiv.style.display = 'none';
+                contentDiv.innerHTML = '';
+            } else {
+                // 상세 내용이 아직 로드되지 않았을 때만 API 호출
+                if (contentDiv.innerHTML === '') {
+                    fetch(`/api/posts/${postId}`)
+                        .then(res => res.json())
+                        .then(post => {
+                            if (post.postId) {
+                                contentDiv.innerText = post.content; // innerText를 사용해 HTML 태그 없이 순수 텍스트로 렌더링
+                                contentDiv.style.display = 'block';
+                            } else {
+                                alert(post.message);
+                            }
+                        });
+                } else {
+                    contentDiv.style.display = 'block';
+                }
+            }
+        }
+
+        // 로그인/회원가입 폼 전환 리스너
+        document.getElementById('show-signup').addEventListener('click', () => {
+            document.getElementById('login-section').style.display = 'none';
+            document.getElementById('signup-section').style.display = 'block';
+        });
+        document.getElementById('show-login').addEventListener('click', () => {
+            document.getElementById('login-section').style.display = 'block';
+            document.getElementById('signup-section').style.display = 'none';
+        });
+
+        // 초기 UI 설정
+        window.onload = updateUI;
+
+    </script>
+</body>
+</html>
