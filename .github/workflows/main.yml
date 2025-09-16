@@ -81,27 +81,30 @@ jobs:
             # 새로 설치한 v2 바이너리를 전체 경로로 직접 호출하여 호환성 문제를 해결합니다.
             echo "### Pulling latest images and restarting services..."
             
-            # 먼저 기존 컨테이너를 완전히 내립니다.
-            sudo /usr/local/bin/docker-compose down
-            
-            sudo /usr/local/bin/docker-compose up -d --force-recreate --remove-orphans
-
-            # SSL 인증서가 없으면 Certbot을 실행하여 발급받습니다.
+            # SSL 인증서가 없는 경우, 발급을 먼저 시도합니다.
             if [ ! -f "/var/lib/docker/volumes/onpremise_certbot-etc/_data/live/${{ secrets.DOMAIN_NAME }}/fullchain.pem" ]; then
               echo "### SSL certificate not found. Issuing new certificate..."
               
               # 1. 임시 설정 파일(default.conf.pre)을 사용하여 Nginx를 실행하고 80번 포트를 엽니다.
-              sudo /usr/local/bin/docker-compose run --rm certbot certonly --webroot -w /var/lib/letsencrypt/webroot \
+              # 먼저 기존 컨테이너를 모두 내립니다.
+              sudo /usr/local/bin/docker-compose -f docker-compose.yml down --remove-orphans
+              # 임시 설정을 복사합니다.
+              sudo cp nginx/default.conf.pre nginx/default.conf
+              # Nginx만 임시 설정으로 실행합니다.
+              sudo /usr/local/bin/docker-compose -f docker-compose.yml up -d nginx
+
+              # 2. Certbot 실행 (webroot 방식)
+              # docker-compose.yml에 정의된 certbot 서비스를 사용하여 인증서를 발급합니다.
+              sudo /usr/local/bin/docker-compose -f docker-compose.yml run --rm certbot certonly --webroot -w /var/lib/letsencrypt/webroot \
                 --email ${{ secrets.CERTBOT_EMAIL }} -d ${{ secrets.DOMAIN_NAME }} --agree-tos -n
 
-              # 2. 임시 Nginx를 내립니다.
-              sudo /usr/local/bin/docker-compose down
-
+              # 3. 임시 설정을 되돌립니다.
+              git checkout -- nginx/default.conf
             else
               echo "### SSL certificate found. Reloading Nginx..."
             fi
 
-            # 3. 최종 설정으로 모든 서비스를 실행합니다.
+            # 최종 설정으로 모든 서비스를 실행합니다.
             sudo /usr/local/bin/docker-compose up -d --force-recreate --remove-orphans
 
             # DB 마이그레이션을 실행합니다.
