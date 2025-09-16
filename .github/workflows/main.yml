@@ -67,15 +67,41 @@ jobs:
             ${{ secrets.ENV_FILE_CONTENT }}
             EOF
 
-            # docker-compose.yml 파일의 image 태그를 새 버전으로 업데이트합니다.
-            # sed 명령어는 파일 내의 문자열을 찾아 다른 문자열로 바꿔주는 역할을 합니다.
-            sed -i "s|image: ${{ secrets.DOCKER_USERNAME }}/onpremise-webservice:.*|image: ${{ secrets.DOCKER_USERNAME }}/onpremise-webservice:${{ github.sha }}|g" docker-compose.yml
+            # Docker Compose V2를 수동으로 설치하여 호환성 문제를 해결합니다.
+            echo "### Installing Docker Compose V2..."
+            sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+            sudo ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
 
-            # Docker Compose를 사용하여 컨테이너를 재시작합니다.
-            sudo docker-compose up -d
+            # SSL 인증서가 없는 경우, 발급을 먼저 시도합니다.
+            if [ ! -d "/etc/letsencrypt/live/${{ secrets.DOMAIN_NAME }}" ]; then
+              echo "### SSL certificate not found. Issuing new certificate..."
+              
+              # 1. 80포트(default.conf.pre)만을 이용한 임시 Nginx 설치 및 실행
+              # 먼저 기존 컨테이너가 있다면 모두 내립니다.
+              sudo /usr/local/bin/docker-compose down --remove-orphans
+              # 임시 설정을 복사합니다.
+              sudo cp nginx/default.conf.pre nginx/default.conf
+              # Nginx만 임시 설정으로 실행합니다.
+              sudo /usr/local/bin/docker-compose up -d nginx
+
+              # 2. Certbot을 실행하여 인증서를 발급합니다.
+              sudo docker run --rm \
+                -v "/etc/letsencrypt:/etc/letsencrypt" \
+                -v "/var/www/certbot:/var/www/certbot" \
+                certbot/certbot certonly --webroot -w /var/www/certbot --force-renewal \
+                --email ${{ secrets.CERTBOT_EMAIL }} -d ${{ secrets.DOMAIN_NAME }} --agree-tos -n
+              
+              # 3. 임시 Nginx를 내리고, 최종 HTTPS 설정(default.conf)으로 되돌립니다.
+              sudo /usr/local/bin/docker-compose down
+              git checkout HEAD -- nginx/default.conf
+            fi
+
+            # 4. 최종 설정으로 모든 서비스를 재기동합니다.
+            sudo /usr/local/bin/docker-compose up -d --force-recreate --remove-orphans
 
             # DB 마이그레이션을 실행합니다.
-            sudo docker-compose exec api flask db upgrade
+            sudo /usr/local/bin/docker-compose exec api flask db upgrade
 
             # 사용하지 않는 오래된 Docker 이미지들을 정리하여 서버 용량을 확보합니다.
             sudo docker image prune -f
