@@ -95,7 +95,7 @@ jobs:
               sudo /usr/local/bin/docker-compose up -d --force-recreate nginx
 
               # Certbot 실행 (webroot 방식). Nginx 컨테이너가 생성한 인증용 디렉터리를 마운트합니다.
-              sudo docker run --rm -it \
+              sudo docker run --rm \
                 -v "onpremise_certbot-etc:/etc/letsencrypt" \
                 -v "onpremise_certbot-var:/var/lib/letsencrypt" \
                 -v "/var/lib/docker/volumes/onpremise_certbot-var/_data:/var/www/certbot" \ # Certbot이 생성한 파일을 Nginx가 읽을 수 있도록 공유
