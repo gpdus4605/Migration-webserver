@@ -69,13 +69,18 @@ jobs:
             cat << EOF > .env
             ${{ secrets.ENV_FILE_CONTENT }}
             EOF
-
+            
+            # Docker Compose V2를 수동으로 설치하여 호환성 문제를 해결합니다.
+            echo "### Installing Docker Compose V2..."
+            sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+            sudo ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+            
             # Docker Compose를 사용하여 컨테이너를 재시작합니다.
-            # docker-compose.yml에 명시된 'latest' 이미지를 강제로 새로 받아옵니다.
-            # docker-compose v1을 사용하여 서비스를 재시작합니다.
+            # docker-compose v2를 사용하여 서비스를 재시작합니다.
             echo "### Pulling latest images and restarting services..."
-            sudo docker-compose pull
-            sudo docker-compose up -d --force-recreate --remove-orphans
+            sudo docker compose pull
+            sudo docker compose up -d --force-recreate --remove-orphans
 
             # SSL 인증서가 없으면 Certbot을 실행하여 발급받습니다.
             if [ ! -f "/var/lib/docker/volumes/onpremise_certbot-etc/_data/live/${{ secrets.DOMAIN_NAME }}/fullchain.pem" ]; then
@@ -90,14 +95,14 @@ jobs:
                 --email ${{ secrets.CERTBOT_EMAIL }} -d ${{ secrets.DOMAIN_NAME }} --agree-tos -n
 
               # 인증서 발급 후 Nginx 설정을 다시 로드합니다.
-              sudo docker-compose exec nginx nginx -s reload
+              sudo docker compose exec nginx nginx -s reload
             else
               echo "### SSL certificate found. Reloading Nginx..."
-              sudo docker-compose exec nginx nginx -s reload
+              sudo docker compose exec nginx nginx -s reload
             fi
 
             # DB 마이그레이션을 실행합니다.
-            sudo docker-compose exec api flask db upgrade
+            sudo docker compose exec api flask db upgrade
 
             # 사용하지 않는 오래된 Docker 이미지들을 정리하여 서버 용량을 확보합니다.
             echo "### Pruning old Docker images..."
