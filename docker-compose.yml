@@ -12,10 +12,10 @@ services:
     volumes:
       # 로컬의 nginx 디렉터리를 컨테이너의 설정 디렉터리에 마운트합니다.
       - ./nginx:/etc/nginx/conf.d
-      # Certbot과 공유할 볼륨을 마운트합니다.
-      - certbot-etc:/etc/letsencrypt
-      # Certbot의 webroot 인증을 위한 challenge 파일을 공유합니다.
-      - certbot-var:/var/lib/letsencrypt
+      # 호스트의 letsencrypt 디렉터리를 마운트하여 인증서를 공유합니다.
+      - /etc/letsencrypt:/etc/letsencrypt
+      # 호스트의 certbot-var 디렉터리를 마운트하여 webroot 인증 파일을 공유합니다.
+      - /var/lib/certbot:/var/www/certbot
     depends_on:
       - api
 
@@ -49,10 +49,10 @@ services:
     # 12시간마다 sleep을 반복하여 컨테이너를 유지시킵니다. (갱신 주기와는 무관)
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do sleep 12h & wait $${!}; done;'"
     volumes:
-      # Nginx와 동일한 볼륨을 마운트하여 인증서를 공유합니다.
-      - certbot-etc:/etc/letsencrypt
-      # Nginx와 동일한 webroot challenge 디렉터리를 공유합니다.
-      - certbot-var:/var/lib/letsencrypt
+      # 호스트의 letsencrypt 디렉터리를 마운트하여 인증서를 저장합니다.
+      - /etc/letsencrypt:/etc/letsencrypt
+      # 호스트의 certbot-webroot 디렉터리를 마운트하여 webroot 인증 파일을 생성합니다.
+      - /var/www/certbot:/var/www/certbot
 
   # 3. PostgreSQL 데이터베이스 서비스 정의
   db:
@@ -73,6 +73,3 @@ services:
 # 4. Docker 볼륨 정의
 volumes:
   postgres-data:
-  # Certbot을 위한 볼륨을 정의합니다.
-  certbot-etc:
-  certbot-var:
