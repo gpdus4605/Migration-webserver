@@ -80,26 +80,17 @@ jobs:
             # docker-compose v2를 사용하여 서비스를 재시작합니다.
             # 새로 설치한 v2 바이너리를 전체 경로로 직접 호출하여 호환성 문제를 해결합니다.
             echo "### Pulling latest images and restarting services..."
-            
+
             # SSL 인증서가 없는 경우, 발급을 먼저 시도합니다.
             if [ ! -f "/var/lib/docker/volumes/onpremise_certbot-etc/_data/live/${{ secrets.DOMAIN_NAME }}/fullchain.pem" ]; then
               echo "### SSL certificate not found. Issuing new certificate..."
               
-              # 1. 임시 설정 파일(default.conf.pre)을 사용하여 Nginx를 실행하고 80번 포트를 엽니다.
-              # 먼저 기존 컨테이너를 모두 내립니다.
-              sudo /usr/local/bin/docker-compose -f docker-compose.yml down --remove-orphans
-              # 임시 설정을 복사합니다.
-              sudo cp nginx/default.conf.pre nginx/default.conf
-              # Nginx만 임시 설정으로 실행합니다.
-              sudo /usr/local/bin/docker-compose -f docker-compose.yml up -d nginx
+              # 1. Nginx를 제외한 모든 서비스를 먼저 실행합니다.
+              sudo /usr/local/bin/docker-compose up -d --force-recreate --remove-orphans api db certbot
 
-              # 2. Certbot 실행 (webroot 방식)
-              # docker-compose.yml에 정의된 certbot 서비스를 사용하여 인증서를 발급합니다.
-              sudo /usr/local/bin/docker-compose -f docker-compose.yml run --rm certbot certonly --webroot -w /var/lib/letsencrypt/webroot \
+              # 2. Certbot을 실행하여 인증서를 발급합니다. --webroot-path는 docker-compose.yml의 볼륨 경로와 일치해야 합니다.
+              sudo /usr/local/bin/docker-compose run --rm certbot certonly --webroot --webroot-path=/var/lib/letsencrypt/webroot \
                 --email ${{ secrets.CERTBOT_EMAIL }} -d ${{ secrets.DOMAIN_NAME }} --agree-tos -n
-
-              # 3. 임시 설정을 되돌립니다.
-              git checkout -- nginx/default.conf
             else
               echo "### SSL certificate found. Reloading Nginx..."
             fi
@@ -108,7 +99,7 @@ jobs:
             sudo /usr/local/bin/docker-compose up -d --force-recreate --remove-orphans
 
             # DB 마이그레이션을 실행합니다.
-            sudo /usr/local/bin/docker-compose run --rm api flask db upgrade
+            sudo /usr/local/bin/docker-compose exec api flask db upgrade
 
             # 사용하지 않는 오래된 Docker 이미지들을 정리하여 서버 용량을 확보합니다.
             echo "### Pruning old Docker images..."

@@ -14,6 +14,7 @@ services:
       - ./nginx:/etc/nginx/conf.d
       # Certbot과 공유할 볼륨을 마운트합니다.
       - certbot-etc:/etc/letsencrypt
+      # Certbot의 webroot 인증을 위한 challenge 파일을 공유합니다.
       - certbot-var:/var/lib/letsencrypt
     depends_on:
       - api
@@ -50,6 +51,7 @@ services:
     volumes:
       # Nginx와 동일한 볼륨을 마운트하여 인증서를 공유합니다.
       - certbot-etc:/etc/letsencrypt
+      # Nginx와 동일한 webroot challenge 디렉터리를 공유합니다.
       - certbot-var:/var/lib/letsencrypt
 
   # 3. PostgreSQL 데이터베이스 서비스 정의
