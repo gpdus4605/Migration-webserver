@@ -56,45 +56,54 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             # 배포 디렉터리로 이동합니다. (없으면 생성)
-            if [ ! -d "$HOME/onpremise" ]; then
+            if [ ! -d "$HOME/onpremise/.git" ]; then
+              echo "### Cloning repository..."
+              rm -rf "$HOME/onpremise" # 비어있지 않은 디렉터리일 경우를 대비해 삭제
               git clone https://github.com/${{ github.repository }}.git "$HOME/onpremise"
             fi
             cd ~/onpremise
             git pull origin main
 
             # GitHub Secrets에 저장된 .env 파일 내용을 서버에 생성합니다.
+            echo "### Creating .env file..."
             cat << EOF > .env
             ${{ secrets.ENV_FILE_CONTENT }}
             EOF
             
+            # Docker Compose V2 설치 (V1이 설치되어 있을 수 있으므로)
+            echo "### Ensuring docker-compose-plugin (v2) is installed..."
+            sudo apt-get update
+            sudo apt-get install -y docker-compose-plugin
+
             # Docker Compose를 사용하여 컨테이너를 재시작합니다.
             # docker-compose.yml에 명시된 'latest' 이미지를 강제로 새로 받아옵니다.
-            sudo docker-compose pull
-            sudo docker-compose up -d --force-recreate --remove-orphans
+            echo "### Pulling latest images and restarting services..."
+            sudo docker compose pull
+            sudo docker compose up -d --force-recreate --remove-orphans
 
             # SSL 인증서가 없으면 Certbot을 실행하여 발급받습니다.
             if [ ! -f "/var/lib/docker/volumes/onpremise_certbot-etc/_data/live/${{ secrets.DOMAIN_NAME }}/fullchain.pem" ]; then
               echo "### SSL certificate not found. Issuing new certificate..."
               
-              # Certbot 실행 (webroot 방식 사용, Nginx 중지 불필요)
-              # Nginx 볼륨을 마운트하여 Certbot이 인증용 임시 파일을 생성할 수 있도록 합니다.
+              # Certbot 실행 (webroot 방식). Nginx 컨테이너가 생성한 인증용 디렉터리를 마운트합니다.
               sudo docker run -it --rm \
                 -v "onpremise_certbot-etc:/etc/letsencrypt" \
                 -v "onpremise_certbot-var:/var/lib/letsencrypt" \
-                -v "onpremise_nginx-conf:/etc/nginx/conf.d" \
-                -v "/var/lib/docker/volumes/onpremise_certbot-var/_data:/var/www/certbot" \
+                -v "$(pwd)/nginx/default.conf:/etc/nginx/conf.d/default.conf" \
+                -v "/var/lib/docker/volumes/onpremise_certbot-var/_data:/var/www/certbot" \ # Certbot이 생성한 파일을 Nginx가 읽을 수 있도록 공유
                 certbot/certbot certonly --webroot -w /var/www/certbot \
                 --email ${{ secrets.CERTBOT_EMAIL }} -d ${{ secrets.DOMAIN_NAME }} --agree-tos -n
 
               # 인증서 발급 후 Nginx 설정을 다시 로드합니다.
-              sudo docker-compose exec nginx nginx -s reload
+              sudo docker compose exec nginx nginx -s reload
             else
               echo "### SSL certificate found. Reloading Nginx..."
-              sudo docker-compose exec nginx nginx -s reload
+              sudo docker compose exec nginx nginx -s reload
             fi
 
             # DB 마이그레이션을 실행합니다.
-            sudo docker-compose exec api flask db upgrade
+            sudo docker compose exec api flask db upgrade
 
             # 사용하지 않는 오래된 Docker 이미지들을 정리하여 서버 용량을 확보합니다.
+            echo "### Pruning old Docker images..."
             sudo docker image prune -f
