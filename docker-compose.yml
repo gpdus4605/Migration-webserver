@@ -17,7 +17,7 @@ services:
   # 2. API 서버 서비스 정의
   api:
     # Docker Hub에서 내려받은 이미지를 사용합니다.
-    image: gpdus4605/onpremise-webservice:v1
+    image: gpdus4605/onpremise-webservice:latest
     # 컨테이너의 이름을 'my-api'로 지정합니다.
     container_name: my-api
     # 외부와 직접 통신하지 않으므로 ports 섹션을 제거하고, 대신 expose로 내부 포트를 명시합니다.
