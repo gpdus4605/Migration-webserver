@@ -35,7 +35,9 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/onpremise-webservice:${{ github.sha }}
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/onpremise-webservice:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/onpremise-webservice:latest
 
   # 2. CD: 운영 서버에 접속하여 최신 버전으로 배포하는 작업
   deploy:
@@ -54,28 +56,32 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             # 배포 디렉터리로 이동합니다. (없으면 생성)
-            # Git 저장소가 없다면 새로 clone 하고, 있다면 최신 코드를 pull 받습니다.
+            echo "### 1. Navigating to deployment directory and pulling latest code..."
             if [ ! -d "$HOME/onpremise/.git" ]; then
-              git clone https://github.com/${{ github.repository }} "$HOME/onpremise"
+              git clone https://github.com/${{ github.repository }}.git "$HOME/onpremise"
             fi
             cd ~/onpremise
             git pull origin main
-
+            
             # GitHub Secrets에 저장된 .env 파일 내용을 서버에 생성합니다.
-            # 'EOF'는 Here Document 문법으로, 여러 줄의 문자열을 파일에 쓸 때 사용합니다.
+            echo "### Creating .env file..."
             cat << EOF > .env
             ${{ secrets.ENV_FILE_CONTENT }}
             EOF
-
-            # docker-compose.yml 파일의 image 태그를 새 버전으로 업데이트합니다.
-            # sed 명령어는 파일 내의 문자열을 찾아 다른 문자열로 바꿔주는 역할을 합니다.
-            sed -i "s|image: .*|image: ${{ secrets.DOCKER_USERNAME }}/onpremise-webservice:${{ github.sha }}|g" docker-compose.yml
-
+            
             # Docker Compose를 사용하여 컨테이너를 재시작합니다.
+            echo "### Pulling latest 'latest' Docker image..."
+            sudo docker pull ${{ secrets.DOCKER_USERNAME }}/onpremise-webservice:latest
+
+            echo "### Restarting services with docker-compose..."
             sudo docker-compose up -d
 
             # DB 마이그레이션을 실행합니다.
+            echo "### Running database migrations..."
             sudo docker-compose exec api flask db upgrade
 
             # 사용하지 않는 오래된 Docker 이미지들을 정리하여 서버 용량을 확보합니다.
+            echo "### Pruning old Docker images..."
             sudo docker image prune -f
+
+            echo "### Deployment finished!"
