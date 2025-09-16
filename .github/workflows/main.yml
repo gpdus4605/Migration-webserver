@@ -56,7 +56,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             # 배포 디렉터리로 이동합니다. (없으면 생성)
-            if [ ! -d "$HOME/onpremise/.git" ]; then
+            if [ ! -d "$HOME/onpremise" ]; then
               git clone https://github.com/${{ github.repository }}.git "$HOME/onpremise"
             fi
             cd ~/onpremise
@@ -66,28 +66,28 @@ jobs:
             cat << EOF > .env
             ${{ secrets.ENV_FILE_CONTENT }}
             EOF
-
+            
             # Docker Compose를 사용하여 컨테이너를 재시작합니다.
             # docker-compose.yml에 명시된 'latest' 이미지를 강제로 새로 받아옵니다.
             sudo docker-compose pull
-            sudo docker-compose up -d --remove-orphans
+            sudo docker-compose up -d --force-recreate --remove-orphans
 
             # SSL 인증서가 없으면 Certbot을 실행하여 발급받습니다.
             if [ ! -f "/var/lib/docker/volumes/onpremise_certbot-etc/_data/live/${{ secrets.DOMAIN_NAME }}/fullchain.pem" ]; then
               echo "### SSL certificate not found. Issuing new certificate..."
               
-              # HTTP-01 인증을 위해 Nginx를 잠시 중지합니다. (Certbot이 80 포트 사용)
-              sudo docker-compose stop nginx
-
-              # Certbot 실행
+              # Certbot 실행 (webroot 방식 사용, Nginx 중지 불필요)
+              # Nginx 볼륨을 마운트하여 Certbot이 인증용 임시 파일을 생성할 수 있도록 합니다.
               sudo docker run -it --rm \
                 -v "onpremise_certbot-etc:/etc/letsencrypt" \
                 -v "onpremise_certbot-var:/var/lib/letsencrypt" \
-                certbot/certbot certonly --standalone \
+                -v "onpremise_nginx-conf:/etc/nginx/conf.d" \
+                -v "/var/lib/docker/volumes/onpremise_certbot-var/_data:/var/www/certbot" \
+                certbot/certbot certonly --webroot -w /var/www/certbot \
                 --email ${{ secrets.CERTBOT_EMAIL }} -d ${{ secrets.DOMAIN_NAME }} --agree-tos -n
 
-              # Nginx를 다시 시작하여 HTTPS 설정을 적용합니다.
-              sudo docker-compose up -d nginx
+              # 인증서 발급 후 Nginx 설정을 다시 로드합니다.
+              sudo docker-compose exec nginx nginx -s reload
             else
               echo "### SSL certificate found. Reloading Nginx..."
               sudo docker-compose exec nginx nginx -s reload
