@@ -54,9 +54,9 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             # 배포 디렉터리로 이동합니다. (없으면 생성)
-            # Git 저장소가 없다면 새로 clone하고, 있다면 최신 코드를 pull 받습니다.
-            if [ ! -d "$HOME/onpremise/.git" ]; then
-              git clone https://github.com/${{ github.repository }}.git "$HOME/onpremise"
+            # Git 저장소가 없다면 새로 clone 하고, 있다면 최신 코드를 pull 받습니다.
+            if [ ! -d "$HOME/onpremise" ]; then
+              git clone https://github.com/${{ github.repository }} ~/onpremise
             fi
             cd ~/onpremise
             git pull origin main
@@ -66,10 +66,10 @@ jobs:
             cat << EOF > .env
             ${{ secrets.ENV_FILE_CONTENT }}
             EOF
-            
+
             # docker-compose.yml 파일의 image 태그를 새 버전으로 업데이트합니다.
             # sed 명령어는 파일 내의 문자열을 찾아 다른 문자열로 바꿔주는 역할을 합니다.
-            sed -i "s|image: .*|image: ${{ secrets.DOCKER_USERNAME }}/onpremise-webservice:${{ github.sha }}|g" docker-compose.yml
+            sed -i "s|image: gpdus4605/onpremise-webservice:.*|image: ${{ secrets.DOCKER_USERNAME }}/onpremise-webservice:${{ github.sha }}|g" docker-compose.yml
 
             # Docker Compose를 사용하여 컨테이너를 재시작합니다.
             sudo docker-compose up -d
