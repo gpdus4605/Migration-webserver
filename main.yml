@@ -1,0 +1,80 @@
+# 워크플로우의 이름을 지정합니다. GitHub Actions 탭에 이 이름이 표시됩니다.
+name: CI/CD for On-premise Webservice
+
+# 워크플로우가 시작될 조건을 지정합니다.
+on:
+  # 'main' 브랜치에 push 이벤트가 발생했을 때 실행됩니다.
+  push:
+    branches: [ "main" ]
+
+# 워크플로우에서 실행될 작업(job)들을 정의합니다.
+jobs:
+  # 1. CI: Docker 이미지를 빌드하고 Docker Hub에 푸시하는 작업
+  build-and-push:
+    # 이 작업이 실행될 가상 환경을 지정합니다. (최신 우분투)
+    runs-on: ubuntu-latest
+    steps:
+      # 1-1. 소스 코드 체크아웃
+      # GitHub Repository에 있는 코드를 가상 환경으로 가져옵니다.
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      # 1-2. Docker Hub 로그인
+      # GitHub Secrets에 저장된 Docker Hub 계정 정보를 사용하여 로그인합니다.
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # 1-3. Docker 이미지 빌드 및 푸시
+      # Dockerfile을 사용하여 이미지를 빌드하고, Docker Hub에 푸시합니다.
+      # 이미지 태그는 고유성을 위해 Git 커밋 해시(SHA)의 앞 7자리를 사용합니다.
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/onpremise-webservice:${{ github.sha }}
+
+  # 2. CD: 운영 서버에 접속하여 최신 버전으로 배포하는 작업
+  deploy:
+    # 'build-and-push' 작업이 성공적으로 완료되어야 이 작업이 실행됩니다.
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      # 2-1. SSH 접속 및 배포 스크립트 실행
+      # GitHub Secrets에 저장된 서버 정보를 사용하여 SSH로 원격 접속하고,
+      # 배포에 필요한 명령어들을 순차적으로 실행합니다.
+      - name: Deploy to server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # 배포 디렉터리로 이동합니다. (없으면 생성)
+            cd ~/onpremise || mkdir ~/onpremise && cd ~/onpremise
+
+            # GitHub Secrets에 저장된 .env 파일 내용을 서버에 생성합니다.
+            # 'EOF'는 Here Document 문법으로, 여러 줄의 문자열을 파일에 쓸 때 사용합니다.
+            cat << EOF > .env
+            ${{ secrets.ENV_FILE_CONTENT }}
+            EOF
+
+            # Docker Hub에서 최신 버전의 이미지를 내려받습니다.
+            # docker-compose.yml 파일의 image 태그를 새 버전으로 업데이트합니다.
+            # sed 명령어는 파일 내의 문자열을 찾아 다른 문자열로 바꿔주는 역할을 합니다.
+            # 여기서는 'image: gpdus4605/onpremise-webservice:...' 부분을 새 이미지 태그로 교체합니다.
+            sed -i 's|image:.*|image: ${{ secrets.DOCKER_USERNAME }}/onpremise-webservice:${{ github.sha }}|g' docker-compose.yml
+
+            # Docker Compose를 사용하여 컨테이너를 재시작합니다.
+            # --pull 옵션은 docker-compose.yml에 명시된 이미지를 항상 새로 받아오도록 합니다.
+            sudo docker-compose pull api
+            sudo docker-compose up -d
+
+            # DB 마이그레이션을 실행합니다.
+            sudo docker-compose exec api flask db upgrade
+
+            # 사용하지 않는 오래된 Docker 이미지들을 정리하여 서버 용량을 확보합니다.
+            sudo docker image prune -f
