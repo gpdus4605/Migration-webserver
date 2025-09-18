@@ -18,9 +18,8 @@ git pull origin main
 
 # .env 파일 생성
 echo "### Creating .env file..."
-cat << EOF > .env
-${ENV_FILE_CONTENT}
-EOF
+# Base64로 인코딩된 ENV_FILE_CONTENT를 디코딩하여 .env 파일을 생성합니다.
+echo "$ENV_FILE_CONTENT" | base64 -d > .env
 
 # SSL 인증서 발급 (필요시)
 # Docker Compose V2는 docker compose (하이픈 없음) 명령어를 사용합니다.
