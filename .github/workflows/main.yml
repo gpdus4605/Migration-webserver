@@ -61,19 +61,12 @@ jobs:
         with:
           instance-ids: ${{ secrets.AWS_INSTANCE_ID }}
           working-directory: /home/${{ secrets.SSH_USERNAME }}
-          # deploy.sh 스크립트 내용을 읽어서 command 파라미터로 전달합니다.
-          # 스크립트 내에서 사용할 환경 변수들을 설정합니다.
-          command: |
-            export GITHUB_REPOSITORY="${{ github.repository }}"
-            export ENV_FILE_CONTENT='${{ secrets.ENV_FILE_CONTENT }}'
-            export DOMAIN_NAME="${{ secrets.DOMAIN_NAME }}"
-            export CERTBOT_EMAIL="${{ secrets.CERTBOT_EMAIL }}"
-            
-            # deploy.sh 파일이 없으면 생성, 있으면 덮어쓰기
-            cat << 'EOF' > deploy.sh
-            ${{ steps.checkout.outputs.path }}/deploy.sh
-            EOF
-            
-            # 스크립트 실행 권한 부여 및 실행
-            chmod +x deploy.sh
-            ./deploy.sh
+          # deploy.sh 파일의 내용을 직접 command 파라미터로 전달합니다.
+          # 이 방식이 YAML 파싱 오류를 최소화하는 가장 안정적인 방법입니다.
+          command: ${{ toJSON(fromJSON(readFile('deploy.sh'))) }}
+          # 스크립트 내에서 사용할 환경 변수들을 env 블록을 통해 전달합니다.
+          env: |
+            GITHUB_REPOSITORY: ${{ github.repository }}
+            ENV_FILE_CONTENT: ${{ secrets.ENV_FILE_CONTENT }}
+            DOMAIN_NAME: ${{ secrets.DOMAIN_NAME }}
+            CERTBOT_EMAIL: ${{ secrets.CERTBOT_EMAIL }}
