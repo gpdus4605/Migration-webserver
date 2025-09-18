@@ -55,15 +55,25 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # 2-3. AWS SSM을 통해 원격 서버에 배포 스크립트 실행
+      # 2-3. 배포 스크립트 파일 내용 읽기
+      # actions/github-script를 사용하여 deploy.sh 파일의 내용을 읽고,
+      # 이 작업(job)의 출력(output)으로 설정합니다.
+      - name: Read deploy script file
+        id: script_reader
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const scriptContent = fs.readFileSync('deploy.sh', 'utf8');
+            core.setOutput('script', scriptContent);
+
+      # 2-4. AWS SSM을 통해 원격 서버에 배포 스크립트 실행
       - name: Deploy to server via AWS SSM
         uses: aws-actions/aws-ssm-send-command@v1
         with:
           instance-ids: ${{ secrets.AWS_INSTANCE_ID }}
           working-directory: /home/${{ secrets.SSH_USERNAME }}
-          # deploy.sh 파일의 내용을 직접 command 파라미터로 전달합니다.
-          # 이 방식이 YAML 파싱 오류를 최소화하는 가장 안정적인 방법입니다.
-          command: ${{ toJSON(fromJSON(readFile('deploy.sh'))) }}
+          command: ${{ steps.script_reader.outputs.script }}
           # 스크립트 내에서 사용할 환경 변수들을 env 블록을 통해 전달합니다.
           env: |
             GITHUB_REPOSITORY: ${{ github.repository }}
