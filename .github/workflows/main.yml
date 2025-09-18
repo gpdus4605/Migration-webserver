@@ -77,11 +77,11 @@ jobs:
           wait-for-completion: true
           # 실행할 스크립트 내용을 전달합니다.
           command: |
-          export GITHUB_REPOSITORY="${{ github.repository }}"
-          # .env 파일 내용은 Base64로 인코딩하여 전달합니다.
-          export ENV_FILE_CONTENT=$(echo "${{ secrets.ENV_FILE_CONTENT }}" | base64 -w 0)
-          export DOMAIN_NAME="${{ secrets.DOMAIN_NAME }}"
-          export CERTBOT_EMAIL="${{ secrets.CERTBOT_EMAIL }}"
-          
-          # 이전 단계에서 읽은 스크립트 내용을 실행합니다.
-          ${{ steps.script_reader.outputs.script }}
+            export GITHUB_REPOSITORY="${{ github.repository }}"
+            # .env 파일 내용은 Base64로 인코딩하여 전달합니다.
+            export ENV_FILE_CONTENT=$(echo "${{ secrets.ENV_FILE_CONTENT }}" | base64 -w 0)
+            export DOMAIN_NAME="${{ secrets.DOMAIN_NAME }}"
+            export CERTBOT_EMAIL="${{ secrets.CERTBOT_EMAIL }}"
+            
+            # 이전 단계에서 읽은 스크립트 내용을 실행합니다.
+            ${{ steps.script_reader.outputs.script }}
