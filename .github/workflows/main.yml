@@ -70,24 +70,25 @@ jobs:
       # 2-4. AWS CLI를 사용하여 원격 서버에 배포 스크립트 실행
       - name: Deploy to server via AWS CLI and SSM
         run: |
-          # Here Document를 사용하여 스크립트 내용을 변수에 안전하게 할당합니다.
-          # EOF 사이의 모든 내용은 줄바꿈과 특수문자를 포함하여 그대로 SCRIPT_CONTENT 변수에 저장됩니다.
-          read -r -d '' SCRIPT_CONTENT <<'EOF'
-          ${{ steps.script_reader.outputs.script }}
-          EOF
+          # 셸 파싱 오류를 원천적으로 방지하기 위해, 복잡한 문자열들을 Base64로 인코딩합니다.
+          # -w 0 옵션은 인코딩된 결과가 여러 줄로 나뉘지 않도록 합니다.
+          ENCODED_ENV=$(echo "${{ secrets.ENV_FILE_CONTENT }}" | base64 -w 0)
+          ENCODED_SCRIPT=$(echo "${{ steps.script_reader.outputs.script }}" | base64 -w 0)
 
-          # AWS CLI에 전달할 파라미터를 JSON 형식으로 구성합니다.
-          # 이렇게 하면 셸의 따옴표 해석 문제를 완전히 피할 수 있습니다.
-          COMMANDS_JSON=$(printf '{"commands": ["export GITHUB_REPOSITORY=\"%s\"","export ENV_FILE_CONTENT=\"%s\"","export DOMAIN_NAME=\"%s\"","export CERTBOT_EMAIL=\"%s\"","%s"], "workingDirectory": ["/home/%s"]}' \
-            "${{ github.repository }}" \
-            "${{ secrets.ENV_FILE_CONTENT }}" \
-            "${{ secrets.DOMAIN_NAME }}" \
-            "${{ secrets.CERTBOT_EMAIL }}" \
-            "$SCRIPT_CONTENT" \
-            "${{ secrets.SSH_USERNAME }}")
+          # 원격 서버에서 실행될 최종 셸 스크립트를 구성합니다.
+          # 1. 환경 변수들을 export 합니다. (Base64 인코딩된 값 포함)
+          # 2. Base64로 인코딩된 배포 스크립트를 디코딩하여 bash로 즉시 실행합니다.
+          FINAL_COMMAND=$(cat <<EOT
+          export GITHUB_REPOSITORY="${{ github.repository }}"
+          export ENV_FILE_CONTENT="$ENCODED_ENV"
+          export DOMAIN_NAME="${{ secrets.DOMAIN_NAME }}"
+          export CERTBOT_EMAIL="${{ secrets.CERTBOT_EMAIL }}"
+          echo "$ENCODED_SCRIPT" | base64 --decode | bash
+          EOT
+          )
 
           # AWS CLI를 직접 사용하여 SSM SendCommand를 실행합니다.
           aws ssm send-command \
             --instance-ids "${{ secrets.AWS_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
-            --parameters "$COMMANDS_JSON"
+            --parameters "commands=['cd /home/${{ secrets.SSH_USERNAME }}', '${FINAL_COMMAND}']"
