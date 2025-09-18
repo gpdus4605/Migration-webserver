@@ -43,7 +43,7 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      # 2-1. AWS 자격 증명 설정
+      # 2-1. AWS 자격 증명 설정 (Configure AWS credentials)
       # GitHub Secrets에 저장된 AWS IAM User의 Access Key를 사용하여 인증합니다.
       # 이 IAM User는 SSM 명령을 실행할 권한이 있어야 합니다.
       - name: Configure AWS credentials
@@ -51,71 +51,71 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }} # 예: ap-northeast-2
+          aws-region: ${{ secrets.AWS_REGION }}
 
-      # 2-2. AWS SSM을 통해 원격 서버에 배포 스크립트 실행
+      # 2-2. AWS SSM을 통해 원격 서버에 배포 스크립트 실행 (Deploy to server via AWS SSM)
       # SSH 포트를 열지 않고 안전하게 명령을 실행합니다.
       - name: Deploy to server via AWS SSM
-        uses: aws-actions/amazon-ssm-send-command@v1
+        uses: aws-actions/aws-ssm-send-command@v1
         with:
           instance-ids: ${{ secrets.AWS_INSTANCE_ID }}
           # working-directory는 SSM Agent v3.0 이상부터 지원됩니다.
           # Amazon Linux 2023 등 최신 AMI는 기본 지원합니다.
           working-directory: /home/${{ secrets.SSH_USERNAME }}
           command: |
-            #!/bin/bash
-            # 스크립트 실행 중 오류가 발생하면 즉시 중단합니다.
-            set -e
-
-            # 배포 디렉터리로 이동합니다. (없으면 생성)
-            # Git 저장소가 없다면 새로 clone 하고, 있다면 최신 코드를 pull 받습니다.
-            if [ ! -d "$HOME/onpremise/.git" ]; then
-              git clone https://github.com/${{ github.repository }} "$HOME/onpremise"
-            fi
-            cd ~/onpremise
-            git pull origin main
-
-            # GitHub Secrets에 저장된 .env 파일 내용을 서버에 생성합니다.
-            # 'EOF'는 Here Document 문법으로, 여러 줄의 문자열을 파일에 쓸 때 사용합니다.
-            cat << EOF > .env
-            ${{ secrets.ENV_FILE_CONTENT }}
-            EOF
-
-            # Docker Compose V2를 수동으로 설치하여 호환성 문제를 해결합니다.
-            echo "### Installing Docker Compose V2..."
-            sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-            sudo chmod +x /usr/local/bin/docker-compose
-            sudo ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
-
-            # SSL 인증서가 없는 경우, 발급을 먼저 시도합니다.
-            if [ ! -d "/etc/letsencrypt/live/${{ secrets.DOMAIN_NAME }}" ]; then
-              echo "### SSL certificate not found. Issuing new certificate..."
-              
-              # 1. 80포트(default.conf.pre)만을 이용한 임시 Nginx 설치 및 실행
-              # 먼저 기존 컨테이너가 있다면 모두 내립니다.
-              sudo /usr/local/bin/docker-compose down --remove-orphans
-              # 임시 설정을 복사합니다.
-              sudo cp nginx/default.conf.pre nginx/default.conf
-              # Nginx만 임시 설정으로 실행합니다.
-              sudo /usr/local/bin/docker-compose up -d nginx
-
-              # 2. Certbot을 실행하여 인증서를 발급합니다.
-              sudo docker run --rm \
-                -v "/etc/letsencrypt:/etc/letsencrypt" \
-                -v "/var/www/certbot:/var/www/certbot" \
-                certbot/certbot certonly --webroot -w /var/www/certbot --force-renewal \
-                --email ${{ secrets.CERTBOT_EMAIL }} -d ${{ secrets.DOMAIN_NAME }} --agree-tos -n
-              
-              # 3. 임시 Nginx를 내리고, 최종 HTTPS 설정(default.conf)으로 되돌립니다.
-              sudo /usr/local/bin/docker-compose down
-              git checkout HEAD -- nginx/default.conf
-            fi
-
-            # 4. 최종 설정으로 모든 서비스를 재기동합니다.
-            sudo /usr/local/bin/docker-compose up -d --force-recreate --remove-orphans
-
-            # DB 마이그레이션을 실행합니다.
-            sudo /usr/local/bin/docker-compose exec api flask db upgrade
-
-            # 사용하지 않는 오래된 Docker 이미지들을 정리하여 서버 용량을 확보합니다.
-            sudo docker image prune -f
+             #!/bin/bash
+             # 스크립트 실행 중 오류가 발생하면 즉시 중단합니다.
+             set -e
+ 
+             # 배포 디렉터리로 이동합니다. (없으면 생성)
+             # Git 저장소가 없다면 새로 clone 하고, 있다면 최신 코드를 pull 받습니다.
+             if [ ! -d "$HOME/onpremise/.git" ]; then
+               git clone https://github.com/${{ github.repository }} "$HOME/onpremise"
+             fi
+             cd ~/onpremise
+             git pull origin main
+ 
+             # GitHub Secrets에 저장된 .env 파일 내용을 서버에 생성합니다.
+             # 'EOF'는 Here Document 문법으로, 여러 줄의 문자열을 파일에 쓸 때 사용합니다.
+             cat << EOF > .env
+             ${{ secrets.ENV_FILE_CONTENT }}
+             EOF
+ 
+             # Docker Compose V2를 수동으로 설치하여 호환성 문제를 해결합니다.
+             echo "### Installing Docker Compose V2..."
+             sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+             sudo chmod +x /usr/local/bin/docker-compose
+             sudo ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+ 
+             # SSL 인증서가 없는 경우, 발급을 먼저 시도합니다.
+             if [ ! -d "/etc/letsencrypt/live/${{ secrets.DOMAIN_NAME }}" ]; then
+               echo "### SSL certificate not found. Issuing new certificate..."
+               
+               # 1. 80포트(default.conf.pre)만을 이용한 임시 Nginx 설치 및 실행
+               # 먼저 기존 컨테이너가 있다면 모두 내립니다.
+               sudo /usr/local/bin/docker-compose down --remove-orphans
+               # 임시 설정을 복사합니다.
+               sudo cp nginx/default.conf.pre nginx/default.conf
+               # Nginx만 임시 설정으로 실행합니다.
+               sudo /usr/local/bin/docker-compose up -d nginx
+ 
+               # 2. Certbot을 실행하여 인증서를 발급합니다.
+               sudo docker run --rm \
+                 -v "/etc/letsencrypt:/etc/letsencrypt" \
+                 -v "/var/www/certbot:/var/www/certbot" \
+                 certbot/certbot certonly --webroot -w /var/www/certbot --force-renewal \
+                 --email ${{ secrets.CERTBOT_EMAIL }} -d ${{ secrets.DOMAIN_NAME }} --agree-tos -n
+               
+               # 3. 임시 Nginx를 내리고, 최종 HTTPS 설정(default.conf)으로 되돌립니다.
+               sudo /usr/local/bin/docker-compose down
+               git checkout HEAD -- nginx/default.conf
+             fi
+ 
+             # 4. 최종 설정으로 모든 서비스를 재기동합니다.
+             sudo /usr/local/bin/docker-compose up -d --force-recreate --remove-orphans
+ 
+             # DB 마이그레이션을 실행합니다.
+             sudo /usr/local/bin/docker-compose exec api flask db upgrade
+ 
+             # 사용하지 않는 오래된 Docker 이미지들을 정리하여 서버 용량을 확보합니다.
+             sudo docker image prune -f
