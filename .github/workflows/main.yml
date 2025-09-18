@@ -43,9 +43,11 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      # 2-1. AWS 자격 증명 설정 (Configure AWS credentials)
-      # GitHub Secrets에 저장된 AWS IAM User의 Access Key를 사용하여 인증합니다.
-      # 이 IAM User는 SSM 명령을 실행할 권한이 있어야 합니다.
+      # 2-1. 소스 코드 체크아웃 (deploy.sh 파일을 읽기 위해 필요)
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      # 2-2. AWS 자격 증명 설정
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -53,14 +55,25 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # 2-2. AWS SSM을 통해 원격 서버에 배포 스크립트 실행 (Deploy to server via AWS SSM)
-      # SSH 포트를 열지 않고 안전하게 명령을 실행합니다.
+      # 2-3. AWS SSM을 통해 원격 서버에 배포 스크립트 실행
       - name: Deploy to server via AWS SSM
         uses: aws-actions/aws-ssm-send-command@v1
         with:
           instance-ids: ${{ secrets.AWS_INSTANCE_ID }}
-          # working-directory는 SSM Agent v3.0 이상부터 지원됩니다.
-          # Amazon Linux 2023 등 최신 AMI는 기본 지원합니다.
           working-directory: /home/${{ secrets.SSH_USERNAME }}
-          # [테스트] 가장 단순한 명령어를 보내서 SSM 연결 자체에 문제가 없는지 확인합니다.
-          command: ls -al
+          # deploy.sh 스크립트 내용을 읽어서 command 파라미터로 전달합니다.
+          # 스크립트 내에서 사용할 환경 변수들을 설정합니다.
+          command: |
+            export GITHUB_REPOSITORY="${{ github.repository }}"
+            export ENV_FILE_CONTENT='${{ secrets.ENV_FILE_CONTENT }}'
+            export DOMAIN_NAME="${{ secrets.DOMAIN_NAME }}"
+            export CERTBOT_EMAIL="${{ secrets.CERTBOT_EMAIL }}"
+            
+            # deploy.sh 파일이 없으면 생성, 있으면 덮어쓰기
+            cat << 'EOF' > deploy.sh
+            ${{ steps.checkout.outputs.path }}/deploy.sh
+            EOF
+            
+            # 스크립트 실행 권한 부여 및 실행
+            chmod +x deploy.sh
+            ./deploy.sh
