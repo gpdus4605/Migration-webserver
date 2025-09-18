@@ -43,30 +43,16 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      # 2-1. AWS 자격 증명 설정
-      # GitHub Secrets에 저장된 AWS IAM User의 Access Key를 사용하여 인증합니다.
-      # 이 IAM User는 SSM 명령을 실행할 권한이 있어야 합니다.
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      # 2-1. SSH 접속 및 배포 스크립트 실행
+      # GitHub Secrets에 저장된 서버 정보를 사용하여 SSH로 원격 접속하고,
+      # 배포에 필요한 명령어들을 순차적으로 실행합니다.
+      - name: Deploy to server via SSH
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }} # 예: ap-northeast-2
-
-      # 2-2. AWS SSM을 통해 원격 서버에 배포 스크립트 실행
-      # SSH 포트를 열지 않고 안전하게 명령을 실행합니다.
-      - name: Deploy to server via AWS SSM
-        uses: aws-actions/aws-ssm-send-command@v1
-        with:
-          instance-ids: ${{ secrets.AWS_INSTANCE_ID }}
-          # working-directory는 SSM Agent v3.0 이상부터 지원됩니다.
-          # Amazon Linux 2023 등 최신 AMI는 기본 지원합니다.
-          working-directory: /home/${{ secrets.SSH_USERNAME }}
-          command: |
-            #!/bin/bash
-            # 스크립트 실행 중 오류가 발생하면 즉시 중단합니다.
-            set -e
-
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
             # 배포 디렉터리로 이동합니다. (없으면 생성)
             # Git 저장소가 없다면 새로 clone 하고, 있다면 최신 코드를 pull 받습니다.
             if [ ! -d "$HOME/onpremise/.git" ]; then
