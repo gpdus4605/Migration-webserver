@@ -68,27 +68,20 @@ jobs:
             core.setOutput('script', scriptContent);
 
       # 2-4. AWS CLI를 사용하여 원격 서버에 배포 스크립트 실행
-      - name: Deploy to server via AWS CLI and SSM
-        run: |
-          # 셸 파싱 오류를 원천적으로 방지하기 위해, 복잡한 문자열들을 Base64로 인코딩합니다.
-          # -w 0 옵션은 인코딩된 결과가 여러 줄로 나뉘지 않도록 합니다.
-          ENCODED_ENV=$(echo "${{ secrets.ENV_FILE_CONTENT }}" | base64 -w 0)
-          ENCODED_SCRIPT=$(echo "${{ steps.script_reader.outputs.script }}" | base64 -w 0)
-
-          # 원격 서버에서 실행될 최종 셸 스크립트를 구성합니다.
-          # 1. 환경 변수들을 export 합니다. (Base64 인코딩된 값 포함)
-          # 2. Base64로 인코딩된 배포 스크립트를 디코딩하여 bash로 즉시 실행합니다.
-          FINAL_COMMAND=$(cat <<EOT
+      - name: Deploy to server via AWS SSM
+        uses: aws-actions/aws-ssm-send-command@v1
+        with:
+          instance-ids: ${{ secrets.AWS_INSTANCE_ID }}
+          working-directory: /home/${{ secrets.SSH_USERNAME }}
+          # 명령 실행이 완료될 때까지 기다립니다. 실패 시 워크플로우도 실패 처리됩니다.
+          wait-for-completion: true
+          # 실행할 스크립트 내용을 전달합니다.
+          command: |
           export GITHUB_REPOSITORY="${{ github.repository }}"
-          export ENV_FILE_CONTENT="$ENCODED_ENV"
+          # .env 파일 내용은 Base64로 인코딩하여 전달합니다.
+          export ENV_FILE_CONTENT=$(echo "${{ secrets.ENV_FILE_CONTENT }}" | base64 -w 0)
           export DOMAIN_NAME="${{ secrets.DOMAIN_NAME }}"
           export CERTBOT_EMAIL="${{ secrets.CERTBOT_EMAIL }}"
-          echo "$ENCODED_SCRIPT" | base64 --decode | bash
-          EOT
-          )
-
-          # AWS CLI를 직접 사용하여 SSM SendCommand를 실행합니다.
-          aws ssm send-command \
-            --instance-ids "${{ secrets.AWS_INSTANCE_ID }}" \
-            --document-name "AWS-RunShellScript" \
-            --parameters "commands=['cd /home/${{ secrets.SSH_USERNAME }}', '${FINAL_COMMAND}']"
+          
+          # 이전 단계에서 읽은 스크립트 내용을 실행합니다.
+          ${{ steps.script_reader.outputs.script }}
