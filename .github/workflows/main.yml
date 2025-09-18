@@ -37,10 +37,20 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/onpremise-webservice:${{ github.sha }}
 
+  # 더미 작업: 캐시 문제를 해결하기 위해 의도적으로 추가된 단계입니다.
+  clear-cache-dummy-job:
+    runs-on: ubuntu-latest
+    # 'build-and-push' 작업이 성공해야 실행됩니다.
+    needs: build-and-push
+    steps:
+      - name: Clear cache by running a simple command
+        run: echo "This job is to prevent unexpected cache hits and resolve action resolution issues."
+
   # 2. CD: 운영 서버에 접속하여 최신 버전으로 배포하는 작업
   deploy:
-    # 'build-and-push' 작업이 성공적으로 완료되어야 이 작업이 실행됩니다.
-    needs: build-and-push
+    # 'clear-cache-dummy-job' 작업이 성공적으로 완료되어야 이 작업이 실행됩니다.
+    # 이렇게 하면 이전 단계의 캐시와 완전히 분리되어 새로운 환경에서 시작하는 효과를 줍니다.
+    needs: clear-cache-dummy-job
     runs-on: ubuntu-latest
     steps:
       # 2-1. AWS 자격 증명 설정
