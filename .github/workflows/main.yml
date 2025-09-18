@@ -67,16 +67,22 @@ jobs:
             const scriptContent = fs.readFileSync('deploy.sh', 'utf8');
             core.setOutput('script', scriptContent);
 
-      # 2-4. AWS SSM을 통해 원격 서버에 배포 스크립트 실행
-      - name: Deploy to server via AWS SSM
-        uses: aws-actions/aws-ssm-send-command@v1
-        with:
-          instance-ids: ${{ secrets.AWS_INSTANCE_ID }}
-          working-directory: /home/${{ secrets.SSH_USERNAME }}
-          command: ${{ steps.script_reader.outputs.script }}
-          # 스크립트 내에서 사용할 환경 변수들을 env 블록을 통해 전달합니다.
-          env: |
-            GITHUB_REPOSITORY: ${{ github.repository }}
-            ENV_FILE_CONTENT: ${{ secrets.ENV_FILE_CONTENT }}
-            DOMAIN_NAME: ${{ secrets.DOMAIN_NAME }}
-            CERTBOT_EMAIL: ${{ secrets.CERTBOT_EMAIL }}
+      # 2-4. AWS CLI를 사용하여 원격 서버에 배포 스크립트 실행
+      - name: Deploy to server via AWS CLI and SSM
+        run: |
+          # 이전 단계에서 읽은 deploy.sh 스크립트 내용을 환경 변수로 설정합니다.
+          # 스크립트 내에서 사용할 다른 환경 변수들도 함께 export 합니다.
+          export DEPLOY_SCRIPT="${{ steps.script_reader.outputs.script }}"
+          export GITHUB_REPOSITORY="${{ github.repository }}"
+          export ENV_FILE_CONTENT='${{ secrets.ENV_FILE_CONTENT }}'
+          export DOMAIN_NAME="${{ secrets.DOMAIN_NAME }}"
+          export CERTBOT_EMAIL="${{ secrets.CERTBOT_EMAIL }}"
+
+          # AWS CLI를 직접 사용하여 SSM SendCommand를 실행합니다.
+          aws ssm send-command \
+            --instance-ids "${{ secrets.AWS_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --parameters "commands=[
+              'cd /home/${{ secrets.SSH_USERNAME }}',
+              '${DEPLOY_SCRIPT}'
+            ]"
