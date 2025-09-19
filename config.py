@@ -18,21 +18,8 @@ class ProductionConfig(Config):
     """운영 환경 설정"""
     DEBUG = False
     # 운영 환경에서는 반드시 환경 변수로부터 실제 DB 주소와 시크릿 키를 받아야 합니다.
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')
-    SQLALCHEMY_DATABASE_URI = None # 클래스 레벨에 기본값 설정
-    @classmethod
-    def init_app(cls):
-        """환경 변수를 읽어 클래스 레벨의 데이터베이스 URI를 설정합니다."""
-        postgres_user = os.environ.get('POSTGRES_USER')
-        postgres_password = os.environ.get('POSTGRES_PASSWORD')
-        postgres_db = os.environ.get('POSTGRES_DB')
-        db_host = 'db'  # docker-compose 서비스 이름
-        db_port = '5432' # 컨테이너 내부 포트
-
-        if not all([postgres_user, postgres_password, postgres_db]):
-            raise ValueError("Database connection environment variables are not fully set.")
-
-        cls.SQLALCHEMY_DATABASE_URI = f"postgresql://{postgres_user}:{postgres_password}@{db_host}:{db_port}/{postgres_db}"
 
 # 사용할 설정을 지정합니다. (예: 'development', 'production')
 # 이 값도 환경 변수로 관리하여 실행 환경에 따라 설정을 바꿀 수 있습니다.
