@@ -9,20 +9,17 @@ set -e
 
 # GitHub Actions에서 전달된 환경 변수를 사용합니다.
 # GITHUB_REPOSITORY는 'CloudDx/hyeyeon'과 같은 형태입니다.
-HOME_DIR="/home/ubuntu" # 외부 변수 의존성을 제거하고 절대 경로를 명시합니다.
-PROJECT_DIR="onpremise-webservice"
-PROJECT_PATH="${HOME_DIR}/${PROJECT_DIR}" # 최종 경로는 /home/ubuntu/onpremise-webservice
 
 echo "### Cloning/Pulling repository..."
-if [ ! -d "$PROJECT_PATH" ]; then
+if [ ! -d "/home/ubuntu/onpremise-webservice" ]; then
   # Public repository이므로 HTTPS로 clone합니다.
-  # git clone 자체가 HOME 변수를 참조하려는 문제를 피하기 위해,
-  # 상위 디렉터리로 먼저 이동한 후 clone을 실행합니다.
-  cd "$HOME_DIR"
-  git clone https://github.com/CloudDx/hyeyeon.git "$PROJECT_PATH"
-  cd "$PROJECT_PATH"
+  # 변수 의존성을 완전히 제거하고, 절대 경로를 직접 사용합니다.
+  cd /home/ubuntu
+  git clone https://github.com/CloudDx/hyeyeon.git onpremise-webservice
+  cd /home/ubuntu/onpremise-webservice
 else
-  cd "$PROJECT_PATH"
+  # 프로젝트 디렉터리가 이미 존재하면 해당 디렉터리로 이동하여 pull을 실행합니다.
+  cd /home/ubuntu/onpremise-webservice
   git pull origin main
 fi
 
