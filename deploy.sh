@@ -44,8 +44,9 @@ sleep 10
 # DB 마이그레이션
 echo "### Running database migrations..."
 # 'exec' 명령은 컨테이너의 'command'를 실행하지 않으므로, DATABASE_URL을 직접 생성하여 전달해야 합니다.
-# 'api' 서비스의 command와 동일하게 .env 파일의 변수들을 조합하고, `python3 -m flask`를 사용하여 올바른 Python 환경에서 실행합니다.
-docker-compose -f /home/ubuntu/onpremise-webservice/docker-compose.yml -p onpremise exec -T api sh -c "export DATABASE_URL=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@db:5432/$POSTGRES_DB && python3 -m flask db upgrade"
+# 'api' 서비스의 command와 동일하게 .env 파일의 변수들을 조합하고, `env`를 사용하여 PATH를 명시적으로 설정한 후 명령을 실행합니다.
+# 이렇게 하면 `sh` 셸이 컨테이너 내의 올바른 python3와 flask를 찾을 수 있습니다.
+docker-compose -f /home/ubuntu/onpremise-webservice/docker-compose.yml -p onpremise exec -T api env PATH="/usr/local/bin:$PATH" sh -c "export DATABASE_URL=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@db:5432/$POSTGRES_DB && python3 -m flask db upgrade"
 
 # 사용하지 않는 Docker 이미지를 정리하여 디스크 공간을 확보합니다.
 echo "### Cleaning up unused docker images..."
