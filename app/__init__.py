@@ -22,10 +22,11 @@ def create_app():
     config_object = config_by_name[config_name]
     app.config.from_object(config_object)
 
-    # JSON 응답에서 한글이 유니코드 이스케이프되지 않도록 설정합니다.
-    app.json.ensure_ascii = False
-
     # --- 2. 확장 초기화 ---
+    # config_object의 모든 속성을 app.config에 명시적으로 다시 로드하여,
+    # 동적으로 생성된 SQLALCHEMY_DATABASE_URI가 확실히 적용되도록 합니다.
+    app.config.from_mapping(vars(config_object))
+
     # db 객체를 Flask 앱에 연결합니다.
     db.init_app(app)
     # Migrate 객체를 db와 app에 연결하여 'flask db' 명령어를 활성화합니다.
@@ -33,6 +34,9 @@ def create_app():
 
     # --- 3. 모델 및 블루프린트 등록 ---
     # Import models here to prevent circular dependencies.
+    # JSON 응답에서 한글이 유니코드 이스케이프되지 않도록 설정합니다.
+    app.json.ensure_ascii = False
+
     from . import models
     from .routes import user_routes, post_routes
     app.register_blueprint(user_routes.bp, url_prefix='/api/users')

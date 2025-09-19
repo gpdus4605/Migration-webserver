@@ -43,6 +43,7 @@ sleep 10
 
 # 사용하지 않는 Docker 이미지를 정리하여 디스크 공간을 확보합니다.
 echo "### Cleaning up unused docker images..."
-docker image prune -af
+# || true를 추가하여, 삭제할 이미지가 없어 명령어가 실패하더라도 전체 스크립트가 중단되지 않도록 합니다.
+docker image prune -af || true
 
 echo "### Deployment finished successfully!"

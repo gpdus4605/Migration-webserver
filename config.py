@@ -28,9 +28,7 @@ class ProductionConfig(Config):
     DB_HOST = 'db'  # docker-compose 서비스 이름
     DB_PORT = '5432' # 컨테이너 내부 포트
 
-    # 모든 변수가 존재하는지 확인하고 URI를 조합합니다.
-    if all([POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB]):
-        SQLALCHEMY_DATABASE_URI = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{DB_HOST}:{DB_PORT}/{POSTGRES_DB}"
+    SQLALCHEMY_DATABASE_URI = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{DB_HOST}:{DB_PORT}/{POSTGRES_DB}"
 
 # 사용할 설정을 지정합니다. (예: 'development', 'production')
 # 이 값도 환경 변수로 관리하여 실행 환경에 따라 설정을 바꿀 수 있습니다.
