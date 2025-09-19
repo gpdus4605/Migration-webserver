@@ -44,7 +44,7 @@ sleep 10
 
 # DB 마이그레이션
 echo "### Running database migrations..."
-docker-compose -f /home/ubuntu/onpremise-webservice/docker-compose.yml -p onpremise exec -T api flask db upgrade
+docker-compose --env-file /home/ubuntu/onpremise-webservice/.env -f /home/ubuntu/onpremise-webservice/docker-compose.yml -p onpremise exec -T api flask db upgrade
 
 # 사용하지 않는 Docker 이미지를 정리하여 디스크 공간을 확보합니다.
 echo "### Cleaning up unused docker images..."
