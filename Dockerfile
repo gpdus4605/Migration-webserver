@@ -22,9 +22,17 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # 프로젝트의 모든 소스 코드를 컨테이너의 작업 디렉토리로 복사합니다.
 COPY . .
 
+# --- 6. Add Entrypoint Script ---
+# entrypoint.sh 스크립트를 복사하고 실행 권한을 부여합니다.
+COPY entrypoint.sh /usr/src/app/entrypoint.sh
+RUN chmod +x /usr/src/app/entrypoint.sh
+
 # --- 6. Expose Port ---
 # 컨테이너가 외부와 통신할 포트를 지정합니다. Flask 기본 포트인 5000번을 엽니다.
 EXPOSE 5000
+
+# --- 7. Set Entrypoint ---
+ENTRYPOINT ["/usr/src/app/entrypoint.sh"]
 
 # --- 7. Run Application ---
 # 컨테이너가 시작될 때 실행할 명령어를 정의합니다.

@@ -33,11 +33,6 @@ services:
     # 아래 정의된 'db' 서비스가 먼저 시작된 후에 'api' 서비스를 시작합니다.
     depends_on:
       - db
-    # DATABASE_URL을 컨테이너 내부에서 동적으로 생성하도록 command를 재정의합니다.
-    # 이렇게 하면 docker-compose가 호스트에서 변수를 찾으려는 시도를 막고,
-    # 컨테이너가 시작될 때 env_file로 주입된 변수들을 사용하여 DATABASE_URL을 올바르게 설정합니다.
-    command: >
-      sh -c "export DATABASE_URL=postgresql://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@db:5432/$${POSTGRES_DB} && gunicorn --bind 0.0.0.0:5000 run:app"
     environment:
       - FLASK_ENV=prod
       - FLASK_APP=run.py
