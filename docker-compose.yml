@@ -18,6 +18,8 @@ services:
       - /var/www/certbot:/var/www/certbot
     depends_on:
       - api # api 서비스가 실행되어야 nginx가 정상적으로 프록시할 수 있습니다.
+    env_file:
+      - /home/ubuntu/onpremise-webservice/.env
 
   # 2. API 서버 서비스 정의
   api:
@@ -48,10 +50,8 @@ services:
     # Docker Hub에 있는 공식 PostgreSQL 14 이미지를 사용합니다.
     image: postgres:14-alpine
     container_name: my-postgres-db
-    environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
+    env_file:
+      - /home/ubuntu/onpremise-webservice/.env
     # .env 파일에 정의된 DB_PORT(5433)를 컨테이너의 5432 포트로 연결합니다.
     ports:
       - "${DB_PORT}:5432"
