@@ -33,9 +33,6 @@ services:
     # 아래 정의된 'db' 서비스가 먼저 시작된 후에 'api' 서비스를 시작합니다.
     depends_on:
       - db
-    environment:
-      - FLASK_ENV=prod
-      - FLASK_APP=run.py
     env_file:
       - ./.env
 
