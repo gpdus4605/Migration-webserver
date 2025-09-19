@@ -17,7 +17,7 @@ services:
       # 호스트의 /var/www/certbot 디렉터리를 마운트하여 webroot 인증 파일을 공유합니다.
       - /var/www/certbot:/var/www/certbot
     depends_on:
-      - api
+      - api # api 서비스가 실행되어야 nginx가 정상적으로 프록시할 수 있습니다.
 
   # 2. API 서버 서비스 정의
   api:
@@ -57,6 +57,19 @@ services:
     # 'postgres-data'라는 이름의 볼륨을 컨테이너의 '/var/lib/postgresql/data' 경로에 마운트합니다.
     volumes:
       - postgres-data:/var/lib/postgresql/data
+
+# 4. Certbot 자동 갱신 서비스 정의
+  certbot:
+    image: certbot/certbot
+    container_name: my-certbot
+    volumes:
+      # Nginx와 동일한 볼륨을 마운트하여 인증서를 공유하고, webroot 경로에 접근합니다.
+      - /etc/letsencrypt:/etc/letsencrypt
+      - /var/www/certbot:/var/www/certbot
+    # 'renew' 명령을 실행하고, 다음 실행까지 12시간 대기합니다.
+    # --quiet 옵션으로 불필요한 로그를 줄입니다.
+    # 이 컨테이너는 주기적으로 갱신만 시도하며, 성공/실패 여부와 관계없이 계속 실행됩니다.
+    command: renew --quiet --webroot -w /var/www/certbot
 
 # 4. Docker 볼륨 정의
 volumes:

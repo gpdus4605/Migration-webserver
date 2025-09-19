@@ -94,7 +94,15 @@ def update_post(current_user, post_id):
     post.content = content
     db.session.commit()
 
-    return jsonify({"message": "게시글이 성공적으로 수정되었습니다."}), 200
+    # API 명세에 따라 수정된 게시글의 전체 정보를 반환합니다.
+    return jsonify({
+        "postId": post.id,
+        "title": post.title,
+        "content": post.content,
+        "author": post.author.username,
+        "createdAt": post.created_at.isoformat(),
+        "updatedAt": post.updated_at.isoformat()
+    }), 200
 
 @bp.route('/<int:post_id>', methods=['DELETE'])
 @token_required
