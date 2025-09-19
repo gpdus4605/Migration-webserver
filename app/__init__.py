@@ -24,19 +24,17 @@ def create_app():
 
     # Production 환경일 경우, init_app 클래스 메서드를 호출하여
     # 환경 변수로부터 동적으로 DATABASE_URI를 설정합니다.
-    if config_name == 'prod':
-        config_object.init_app()
+    config_object.init_app()
 
     # JSON 응답에서 한글이 유니코드 이스케이프되지 않도록 설정합니다.
     app.json.ensure_ascii = False
 
     # --- 2. 확장 초기화 ---
+    # config_object에서 동적으로 생성된 DB URI를 app.config에 다시 한번 설정해줍니다.
+    # 이렇게 해야 db.init_app()이 올바른 DB URI를 인식합니다.
+    app.config['SQLALCHEMY_DATABASE_URI'] = config_object.SQLALCHEMY_DATABASE_URI
     # db 객체를 Flask 앱에 연결합니다.
     db.init_app(app)
-    # config_object에서 동적으로 생성된 DB URI를 app.config에 다시 한번 설정해줍니다.
-    # 이렇게 해야 db.init_app() 이후에도 app이 올바른 DB URI를 인식합니다.
-    if config_name == 'prod':
-        app.config['SQLALCHEMY_DATABASE_URI'] = config_object.SQLALCHEMY_DATABASE_URI
     # Migrate 객체를 db와 app에 연결하여 'flask db' 명령어를 활성화합니다.
     migrate.init_app(app, db)
 
