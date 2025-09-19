@@ -9,15 +9,18 @@ set -e
 
 # GitHub Actions에서 전달된 환경 변수를 사용합니다.
 # GITHUB_REPOSITORY는 'CloudDx/hyeyeon'과 같은 형태입니다.
+HOME_DIR="/home/${SSH_USERNAME}"
 PROJECT_DIR="onpremise-webservice"
+PROJECT_PATH="${HOME_DIR}/${PROJECT_DIR}"
 
 echo "### Cloning/Pulling repository..."
-if [ ! -d "$PROJECT_DIR" ]; then
+if [ ! -d "$PROJECT_PATH" ]; then
   # Public repository이므로 HTTPS로 clone합니다.
-  git clone https://github.com/CloudDx/hyeyeon.git "$PROJECT_DIR"
+  # clone할 위치를 절대 경로로 지정합니다.
+  git clone https://github.com/CloudDx/hyeyeon.git "$PROJECT_PATH"
 fi
 
-cd "$PROJECT_DIR"
+cd "$PROJECT_PATH"
 git pull origin main
 
 # .env 파일 생성
@@ -49,5 +52,9 @@ sleep 10
 # DB 마이그레이션
 echo "### Running database migrations..."
 docker compose exec api flask db upgrade
+
+# 사용하지 않는 Docker 이미지를 정리하여 디스크 공간을 확보합니다.
+echo "### Cleaning up unused docker images..."
+docker image prune -af
 
 echo "### Deployment finished successfully!"

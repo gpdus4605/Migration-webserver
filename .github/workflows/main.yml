@@ -80,6 +80,7 @@ jobs:
           COMMANDS=(
             "export GITHUB_REPOSITORY='${{ github.repository }}'"
             "export GITHUB_SHA='${{ github.sha }}'"
+            "export SSH_USERNAME='${{ secrets.SSH_USERNAME }}'"
             "export ENV_FILE_CONTENT='$ENCODED_ENV'"
             "echo '$ENCODED_SCRIPT' | base64 --decode | bash"
           )
