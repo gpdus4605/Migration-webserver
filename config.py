@@ -18,7 +18,14 @@ class ProductionConfig(Config):
     """운영 환경 설정"""
     DEBUG = False
     # 운영 환경에서는 반드시 환경 변수로부터 실제 DB 주소와 시크릿 키를 받아야 합니다.
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
+    # 개별 환경 변수를 읽어 데이터베이스 URI를 동적으로 생성합니다.
+    # 이렇게 하면 docker-compose.yml에서 복잡한 command를 사용할 필요가 없습니다.
+    POSTGRES_USER = os.environ.get('POSTGRES_USER')
+    POSTGRES_PASSWORD = os.environ.get('POSTGRES_PASSWORD')
+    POSTGRES_DB = os.environ.get('POSTGRES_DB')
+    DB_HOST = 'db'  # docker-compose 서비스 이름
+    DB_PORT = '5432' # 컨테이너 내부 포트
+    SQLALCHEMY_DATABASE_URI = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{DB_HOST}:{DB_PORT}/{POSTGRES_DB}"
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')
 
 # 사용할 설정을 지정합니다. (예: 'development', 'production')
