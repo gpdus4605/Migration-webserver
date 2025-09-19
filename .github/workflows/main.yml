@@ -31,12 +31,11 @@ jobs:
       # Dockerfile을 사용하여 이미지를 빌드하고, Docker Hub에 푸시합니다.
       # 이미지 태그는 고유성을 위해 Git 커밋 해시(SHA)의 앞 7자리를 사용합니다.
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          file: Dockerfile
-          push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/onpremise-webservice:${{ github.sha }}
+        run: |
+          cd backend
+          docker buildx build --file Dockerfile \
+            --tag ${{ secrets.DOCKER_USERNAME }}/onpremise-webservice:${{ github.sha }} \
+            --push .
 
   # 2. CD: 운영 서버에 접속하여 최신 버전으로 배포하는 작업
   deploy:
