@@ -16,12 +16,15 @@ PROJECT_PATH="${HOME_DIR}/${PROJECT_DIR}" # 최종 경로는 /home/ubuntu/onprem
 echo "### Cloning/Pulling repository..."
 if [ ! -d "$PROJECT_PATH" ]; then
   # Public repository이므로 HTTPS로 clone합니다.
-  # clone할 위치를 절대 경로로 지정합니다.
+  # git clone 자체가 HOME 변수를 참조하려는 문제를 피하기 위해,
+  # 상위 디렉터리로 먼저 이동한 후 clone을 실행합니다.
+  cd "$HOME_DIR"
   git clone https://github.com/CloudDx/hyeyeon.git "$PROJECT_PATH"
+  cd "$PROJECT_PATH"
+else
+  cd "$PROJECT_PATH"
+  git pull origin main
 fi
-
-cd "$PROJECT_PATH"
-git pull origin main
 
 # .env 파일 생성
 echo "### Creating .env file..."
