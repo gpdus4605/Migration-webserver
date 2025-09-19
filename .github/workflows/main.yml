@@ -75,24 +75,31 @@ jobs:
           ENCODED_ENV=$(echo "${{ secrets.ENV_FILE_CONTENT }}" | base64 -w 0)
           ENCODED_SCRIPT=$(echo "${{ steps.script_reader.outputs.script }}" | base64 -w 0)
 
-          # 모든 export 명령어와 스크립트 실행을 세미콜론(;)으로 연결하여 단일 셸 세션에서 실행되도록 합니다.
-          # 이렇게 해야 export한 환경 변수가 bash 스크립트 내에서 유효합니다.
-          SINGLE_COMMAND="export GITHUB_REPOSITORY='${{ github.repository }}'; \
+          # 1단계: Git Clone 또는 Pull을 수행하는 명령
+          # workingDirectory가 /home/ubuntu이므로, 이 위치에서 git 작업을 먼저 수행합니다.
+          GIT_COMMAND="if [ ! -d 'onpremise-webservice' ]; then git clone https://github.com/${{ github.repository }}.git onpremise-webservice; else cd onpremise-webservice && git pull origin main; fi"
+
+          # 2단계: 프로젝트 디렉터리 내에서 실제 배포 스크립트를 실행하는 명령
+          # export한 환경 변수가 bash 스크립트 내에서 유효하도록 세미콜론으로 연결합니다.
+          DEPLOY_COMMAND="export GITHUB_REPOSITORY='${{ github.repository }}'; \
                           export GITHUB_SHA='${{ github.sha }}'; \
-                          export SSH_USERNAME='${{ secrets.SSH_USERNAME }}'; \
                           export ENV_FILE_CONTENT='$ENCODED_ENV'; \
                           echo '$ENCODED_SCRIPT' | base64 --decode | bash"
           
-          # 전체 명령을 JSON 배열 형식으로 변환합니다.
-          # printf와 jq를 사용하여 안전하게 JSON 문자열을 생성합니다.
-          COMMANDS_JSON=$(printf '%s' "$SINGLE_COMMAND" | jq -R . | jq -s .)
+          # 1단계 실행
+          aws ssm send-command --instance-ids "${{ secrets.AWS_INSTANCE_ID }}" --document-name "AWS-RunShellScript" --parameters "{\"workingDirectory\":[\"/home/${{ secrets.SSH_USERNAME }}\"],\"commands\":[\"$GIT_COMMAND\"]}" --output text > /dev/null
+          sleep 5 # Git 작업이 완료될 시간을 줍니다.
+
+          # 2단계 실행 (배포)
+          # 이제 workingDirectory를 프로젝트 폴더로 지정하여 모든 명령이 해당 폴더 내에서 실행되도록 합니다.
+          COMMANDS_JSON=$(printf '%s' "$DEPLOY_COMMAND" | jq -R . | jq -s .)
 
           # AWS CLI를 직접 사용하여 SSM SendCommand를 실행합니다.
           # --output text로 CommandId만 추출하고, 이 ID를 사용하여 명령이 끝날 때까지 기다립니다.
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ secrets.AWS_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
-            --parameters "{\"workingDirectory\":[\"/home/${{ secrets.SSH_USERNAME }}\"],\"commands\":$COMMANDS_JSON}" \
+            --parameters "{\"workingDirectory\":[\"/home/${{ secrets.SSH_USERNAME }}/onpremise-webservice\"],\"commands\":$COMMANDS_JSON}" \
             --output text --query "Command.CommandId")
 
           echo "SSM Command ID: $COMMAND_ID"

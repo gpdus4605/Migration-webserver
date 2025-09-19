@@ -10,21 +10,6 @@ set -e
 # GitHub Actions에서 전달된 환경 변수를 사용합니다.
 # GITHUB_REPOSITORY는 'CloudDx/hyeyeon'과 같은 형태입니다.
 
-# 스크립트의 모든 작업은 프로젝트 디렉터리 내에서 이루어지도록 시작부터 이동합니다.
-if [ ! -d "/home/ubuntu/onpremise-webservice" ]; then
-  echo "### Cloning repository..."
-  # Public repository이므로 HTTPS로 clone합니다.
-  cd /home/ubuntu
-  git clone https://github.com/CloudDx/hyeyeon.git onpremise-webservice
-else
-  cd /home/ubuntu/onpremise-webservice
-  echo "### Pulling repository..."
-  git pull origin main
-fi
-
-# 이후 모든 작업은 프로젝트 디렉터리 내에서 수행합니다.
-cd /home/ubuntu/onpremise-webservice
-
 echo "### Creating .env file..."
 # GitHub Actions에서 Base64로 인코딩하여 전달한 ENV_FILE_CONTENT를
 # 서버에서 디코딩하여 .env 파일을 올바르게 생성합니다.
