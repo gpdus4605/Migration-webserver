@@ -24,7 +24,7 @@ read -p "Press [Enter] key after creating .env file..."
 # 4. SSL 인증서 발급을 위한 준비
 echo "### Issuing SSL certificate for the first time..."
 # HTTPS 설정이 없는 임시 Nginx 설정 파일을 사용합니다.
-cp nginx/nginx.conf.pre-ssl nginx/default.conf
+cp nginx/certbot.conf nginx/default.conf
 
 # 5. 임시 Nginx 실행
 docker compose up -d nginx
@@ -38,7 +38,8 @@ docker run --rm \
 
 # 7. 임시 Nginx 종료 및 설정 파일 원복
 docker compose down
-git checkout HEAD -- nginx/default.conf
+rm nginx/default.conf
+cp nginx/default.conf.prod nginx/default.conf
 
 # 8. 모든 서비스 시작 (Certbot 갱신 포함)
 echo "### Starting all services..."

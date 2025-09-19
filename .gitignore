@@ -8,3 +8,7 @@ venv/
 
 # Markdown
 *.md
+
+# Textfile
+buildreq.txt
+*dev*

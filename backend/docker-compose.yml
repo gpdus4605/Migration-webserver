@@ -16,17 +16,21 @@ services:
       - /etc/letsencrypt:/etc/letsencrypt
       # 호스트의 /var/www/certbot 디렉터리를 마운트하여 webroot 인증 파일을 공유합니다.
       - /var/www/certbot:/var/www/certbot
+      # frontend 디렉토리를 Nginx의 기본 웹 루트에 마운트합니다.
+      - ../frontend:/usr/share/nginx/html
     depends_on:
       - api # api 서비스가 실행되어야 nginx가 정상적으로 프록시할 수 있습니다.
     env_file:
-      - ./.env
+      - ../.env
 
   # 2. API 서버 서비스 정의
   api:
-    # Docker Hub에서 내려받은 이미지를 사용합니다.
-    image: gpdus4605/onpremise-webservice:latest
+    # 현재 디렉터리의 Dockerfile을 사용하여 이미지를 빌드합니다.
+    build: .
     # 컨테이너의 이름을 'my-api'로 지정합니다.
     container_name: my-api
+    environment:
+      FLASK_ENV: prod
     # 외부와 직접 통신하지 않으므로 ports 섹션을 제거하고, 대신 expose로 내부 포트를 명시합니다.
     expose:
       - "5000"
@@ -34,7 +38,7 @@ services:
     depends_on:
       - db
     env_file:
-      - ./.env
+      - ../.env
 
   # 3. PostgreSQL 데이터베이스 서비스 정의
   db:
@@ -42,7 +46,7 @@ services:
     image: postgres:14-alpine
     container_name: my-postgres-db
     env_file:
-      - ./.env
+      - ../.env
     # .env 파일에 정의된 DB_PORT(5433)를 컨테이너의 5432 포트로 연결합니다.
     ports:
       - "5433:5432"
