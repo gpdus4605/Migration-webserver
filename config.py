@@ -19,10 +19,10 @@ class ProductionConfig(Config):
     DEBUG = False
     # 운영 환경에서는 반드시 환경 변수로부터 실제 DB 주소와 시크릿 키를 받아야 합니다.
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')
-
-    def __init__(self):
-        """인스턴스가 생성될 때 환경 변수를 읽어 URI를 설정합니다."""
-        super().__init__()
+    SQLALCHEMY_DATABASE_URI = None # 클래스 레벨에 기본값 설정
+    @classmethod
+    def init_app(cls):
+        """환경 변수를 읽어 클래스 레벨의 데이터베이스 URI를 설정합니다."""
         postgres_user = os.environ.get('POSTGRES_USER')
         postgres_password = os.environ.get('POSTGRES_PASSWORD')
         postgres_db = os.environ.get('POSTGRES_DB')
@@ -32,7 +32,7 @@ class ProductionConfig(Config):
         if not all([postgres_user, postgres_password, postgres_db]):
             raise ValueError("Database connection environment variables are not fully set.")
 
-        self.SQLALCHEMY_DATABASE_URI = f"postgresql://{postgres_user}:{postgres_password}@{db_host}:{db_port}/{postgres_db}"
+        cls.SQLALCHEMY_DATABASE_URI = f"postgresql://{postgres_user}:{postgres_password}@{db_host}:{db_port}/{postgres_db}"
 
 # 사용할 설정을 지정합니다. (예: 'development', 'production')
 # 이 값도 환경 변수로 관리하여 실행 환경에 따라 설정을 바꿀 수 있습니다.

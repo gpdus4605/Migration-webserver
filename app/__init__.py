@@ -19,7 +19,12 @@ def create_app():
     # --- 1. 설정 로드 ---
     # FLASK_ENV 환경 변수를 기반으로 설정을 로드합니다. (기본값: 'dev')
     config_name = os.getenv('FLASK_ENV', 'dev')
-    app.config.from_object(config_by_name[config_name])
+    config_object = config_by_name[config_name]
+    app.config.from_object(config_object)
+
+    # Production 환경일 경우, init_app 클래스 메서드를 호출하여
+    # 환경 변수로부터 동적으로 DATABASE_URI를 설정합니다.
+    config_object.init_app()
 
     # JSON 응답에서 한글이 유니코드 이스케이프되지 않도록 설정합니다.
     app.json.ensure_ascii = False
