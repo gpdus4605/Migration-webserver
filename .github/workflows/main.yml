@@ -64,7 +64,7 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const scriptContent = fs.readFileSync('deploy.sh', 'utf8');
+            const scriptContent = fs.readFileSync('backend/deploy.sh', 'utf8');
             core.setOutput('script', scriptContent);
 
       # 2-4. AWS CLI를 사용하여 원격 서버에 배포 스크립트 실행
