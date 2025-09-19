@@ -42,7 +42,7 @@ services:
 EOF
 
 echo "### Restarting services with the new image..."
-docker compose up -d --remove-orphans
+docker-compose up -d --remove-orphans
 
 # api 컨테이너가 완전히 시작될 때까지 잠시 대기합니다.
 # 애플리케이션의 시작 시간에 따라 5~10초 정도의 대기 시간을 주는 것이 안정적입니다.
@@ -52,6 +52,7 @@ sleep 10
 # DB 마이그레이션
 echo "### Running database migrations..."
 docker compose exec api flask db upgrade
+# docker-compose exec api flask db upgrade
 
 # 사용하지 않는 Docker 이미지를 정리하여 디스크 공간을 확보합니다.
 echo "### Cleaning up unused docker images..."
