@@ -75,19 +75,17 @@ jobs:
           ENCODED_ENV=$(echo "${{ secrets.ENV_FILE_CONTENT }}" | base64 -w 0)
           ENCODED_SCRIPT=$(echo "${{ steps.script_reader.outputs.script }}" | base64 -w 0)
 
-          # 원격 서버에서 실행될 명령들을 배열 형태로 구성합니다.
-          # 셸 파싱 문제를 피하기 위해 각 환경 변수 설정을 별도의 명령으로 분리합니다.
-          COMMANDS=(
-            "export GITHUB_REPOSITORY='${{ github.repository }}'"
-            "export GITHUB_SHA='${{ github.sha }}'"
-            "export SSH_USERNAME='${{ secrets.SSH_USERNAME }}'"
-            "export ENV_FILE_CONTENT='$ENCODED_ENV'"
-            "echo '$ENCODED_SCRIPT' | base64 --decode | bash"
-          )
-
+          # 모든 export 명령어와 스크립트 실행을 세미콜론(;)으로 연결하여 단일 셸 세션에서 실행되도록 합니다.
+          # 이렇게 해야 export한 환경 변수가 bash 스크립트 내에서 유효합니다.
+          SINGLE_COMMAND="export GITHUB_REPOSITORY='${{ github.repository }}'; \
+                          export GITHUB_SHA='${{ github.sha }}'; \
+                          export SSH_USERNAME='${{ secrets.SSH_USERNAME }}'; \
+                          export ENV_FILE_CONTENT='$ENCODED_ENV'; \
+                          echo '$ENCODED_SCRIPT' | base64 --decode | bash"
+          
           # 전체 명령을 JSON 배열 형식으로 변환합니다.
           # printf와 jq를 사용하여 안전하게 JSON 문자열을 생성합니다.
-          COMMANDS_JSON=$(printf '%s\n' "${COMMANDS[@]}" | jq -R . | jq -s .)
+          COMMANDS_JSON=$(printf '%s' "$SINGLE_COMMAND" | jq -R . | jq -s .)
 
           # AWS CLI를 직접 사용하여 SSM SendCommand를 실행합니다.
           # --output text로 CommandId만 추출하고, 이 ID를 사용하여 명령이 끝날 때까지 기다립니다.
@@ -118,8 +116,8 @@ jobs:
               --query "Command.CommandId" --output text)
             
             # 로그를 가져오는 명령이 끝날 때까지 잠시 기다립니다.
-            sleep 5 
+            sleep 3
             # 해당 명령의 실행 결과를 가져와서 출력합니다.
-            aws ssm get-command-invocation --command-id "$LOG_COMMAND_ID" --instance-id "${{ secrets.AWS_INSTANCE_ID }}" --query "StandardOutputContent"
+            aws ssm get-command-invocation --command-id "$LOG_COMMAND_ID" --instance-id "${{ secrets.AWS_INSTANCE_ID }}" --query "StandardOutputContent" --output text
             exit 1
           fi
