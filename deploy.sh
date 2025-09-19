@@ -9,9 +9,9 @@ set -e
 
 # GitHub Actions에서 전달된 환경 변수를 사용합니다.
 # GITHUB_REPOSITORY는 'CloudDx/hyeyeon'과 같은 형태입니다.
-HOME_DIR="/home/${SSH_USERNAME}"
+HOME_DIR="/home/ubuntu" # 외부 변수 의존성을 제거하고 절대 경로를 명시합니다.
 PROJECT_DIR="onpremise-webservice"
-PROJECT_PATH="${HOME_DIR}/${PROJECT_DIR}"
+PROJECT_PATH="${HOME_DIR}/${PROJECT_DIR}" # 최종 경로는 /home/ubuntu/onpremise-webservice
 
 echo "### Cloning/Pulling repository..."
 if [ ! -d "$PROJECT_PATH" ]; then
