@@ -42,7 +42,11 @@ services:
 EOF
 
 echo "### Restarting services with the new image..."
-docker-compose up -d --remove-orphans
+# -p onpremise: 프로젝트 이름을 'onpremise'로 고정하여 항상 동일한 컨테이너 그룹을 관리하도록 합니다.
+# --env-file ./.env: 현재 디렉터리의 .env 파일을 환경 변수 파일로 명시적으로 지정합니다.
+# 이렇게 하면 docker-compose가 환경 변수를 확실하게 읽어들여 경고를 없애고,
+# 기존에 실행 중인 컨테이너를 '재시작(recreate)' 또는 '업데이트'하여 이름 충돌 없이 배포를 완료합니다.
+docker-compose -p onpremise --env-file ./.env up -d --remove-orphans
 
 # api 컨테이너가 완전히 시작될 때까지 잠시 대기합니다.
 # 애플리케이션의 시작 시간에 따라 5~10초 정도의 대기 시간을 주는 것이 안정적입니다.
@@ -51,8 +55,7 @@ sleep 10
 
 # DB 마이그레이션
 echo "### Running database migrations..."
-docker compose exec api flask db upgrade
-# docker-compose exec api flask db upgrade
+docker-compose -p onpremise exec api flask db upgrade
 
 # 사용하지 않는 Docker 이미지를 정리하여 디스크 공간을 확보합니다.
 echo "### Cleaning up unused docker images..."
