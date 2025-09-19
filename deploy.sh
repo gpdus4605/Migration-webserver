@@ -17,12 +17,14 @@ if [ ! -d "/home/ubuntu/onpremise-webservice" ]; then
   cd /home/ubuntu
   git clone https://github.com/CloudDx/hyeyeon.git onpremise-webservice
 else
-  # git pull을 실행하기 전에 반드시 프로젝트 디렉터리로 먼저 이동해야 합니다.
   cd /home/ubuntu/onpremise-webservice
   echo "### Pulling repository..."
   git pull origin main
 fi
-# .env 파일 생성
+
+# 이후 모든 작업은 프로젝트 디렉터리 내에서 수행합니다.
+cd /home/ubuntu/onpremise-webservice
+
 echo "### Creating .env file..."
 # GitHub Actions에서 Base64로 인코딩하여 전달한 ENV_FILE_CONTENT를
 # 서버에서 디코딩하여 .env 파일을 올바르게 생성합니다.
