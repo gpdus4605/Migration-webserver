@@ -6,8 +6,8 @@ services:
     image: nginx:alpine
     container_name: my-nginx
     ports:
-      # .env 파일에 정의된 WEB_PORT(80)와 443(HTTPS) 포트를 연결합니다.
-      - "${WEB_PORT}:80"
+      # 포트 번호를 직접 명시하여 변수 보간 문제를 원천적으로 제거합니다.
+      - "80:80"
       - "443:443"
     volumes:
       # 로컬의 nginx 디렉터리를 컨테이너의 설정 디렉터리에 마운트합니다.
@@ -60,7 +60,7 @@ services:
       - /home/ubuntu/onpremise-webservice/.env
     # .env 파일에 정의된 DB_PORT(5433)를 컨테이너의 5432 포트로 연결합니다.
     ports:
-      - "${DB_PORT}:5432"
+      - "5433:5432"
     # 데이터베이스 데이터를 영속적으로 저장하기 위해 볼륨을 연결합니다.
     # 'postgres-data'라는 이름의 볼륨을 컨테이너의 '/var/lib/postgresql/data' 경로에 마운트합니다.
     volumes:
