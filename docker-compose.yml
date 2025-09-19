@@ -41,7 +41,7 @@ services:
       - FLASK_APP=run.py
     # .env 파일의 모든 변수를 컨테이너의 환경 변수로 주입합니다.
     env_file:
-      - ./.env
+      - /home/ubuntu/onpremise-webservice/.env
 
   # 3. PostgreSQL 데이터베이스 서비스 정의
   db:
