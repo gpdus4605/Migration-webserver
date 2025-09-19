@@ -107,24 +107,15 @@ jobs:
           # 명령이 끝날 때까지 대기합니다. (최대 5분)
           aws ssm wait command-executed --command-id "$COMMAND_ID" --instance-id "${{ secrets.AWS_INSTANCE_ID }}"
 
-          # 명령 실행 결과를 확인하고, 실패 시 워크플로우를 중단시킵니다.
-          aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "${{ secrets.AWS_INSTANCE_ID }}"
-          OUTPUT=$(aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "${{ secrets.AWS_INSTANCE_ID }}" --query "StandardOutputContent")
-          echo "$OUTPUT"
-          STATUS=$(aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "${{ secrets.AWS_INSTANCE_ID }}" --query "Status")
-          if [ "$STATUS" != "Success" ]; then
-            echo "Deployment script failed with status: $STATUS"
-            echo "--- Fetching deployment logs from server (/tmp/deploy.log) ---"
-            # 로그를 가져오는 명령을 보내고 CommandId를 받습니다.
-            LOG_COMMAND_ID=$(aws ssm send-command \
-              --instance-ids "${{ secrets.AWS_INSTANCE_ID }}" \
-              --document-name "AWS-RunShellScript" \
-              --parameters "commands=['cat /tmp/deploy.log']" \
-              --query "Command.CommandId" --output text)
-            
-            # 로그를 가져오는 명령이 끝날 때까지 잠시 기다립니다.
-            sleep 3
-            # 해당 명령의 실행 결과를 가져와서 출력합니다.
-            aws ssm get-command-invocation --command-id "$LOG_COMMAND_ID" --instance-id "${{ secrets.AWS_INSTANCE_ID }}" --query "StandardOutputContent" --output text
-            exit 1
-          fi
+          # 'aws ssm wait' 명령어가 성공적으로 통과하면 배포가 성공한 것으로 간주합니다.
+          # 만약 실패했다면, wait 명령어 자체가 0이 아닌 종료 코드를 반환하여 워크플로우가 자동으로 중단됩니다.
+          # 따라서, 이후의 복잡한 상태 확인 로직은 더 이상 필요하지 않습니다.
+          echo "### Deployment command sent and executed successfully."
+
+          # 마지막으로 서버의 배포 로그를 가져와서 확인합니다.
+          echo "--- Fetching final deployment logs from server (/tmp/deploy.log) ---"
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "${{ secrets.AWS_INSTANCE_ID }}" \
+            --query "StandardOutputContent" \
+            --output text
