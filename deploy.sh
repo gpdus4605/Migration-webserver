@@ -46,7 +46,7 @@ echo "### Restarting services with the new image..."
 # 이렇게 하면 docker-compose가 환경 변수를 확실하게 읽어들여 경고를 없애고,
 # 기존에 실행 중인 컨테이너를 '재시작(recreate)' 또는 '업데이트'하여 이름 충돌 없이 배포를 완료합니다.
 # nginx와 api 서비스만 대상으로 지정하여 db와 certbot 컨테이너와의 충돌을 원천적으로 방지합니다.
-docker-compose -p onpremise --env-file ./.env up -d --no-deps --build nginx api
+docker-compose -p onpremise --env-file /home/ubuntu/onpremise-webservice/.env up -d --no-deps --build nginx api
 
 # api 컨테이너가 완전히 시작될 때까지 잠시 대기합니다.
 # 애플리케이션의 시작 시간에 따라 5~10초 정도의 대기 시간을 주는 것이 안정적입니다.
@@ -55,7 +55,7 @@ sleep 10
 
 # DB 마이그레이션
 echo "### Running database migrations..."
-docker-compose -p onpremise exec api flask db upgrade
+docker-compose -p onpremise --env-file /home/ubuntu/onpremise-webservice/.env exec api flask db upgrade
 
 # 사용하지 않는 Docker 이미지를 정리하여 디스크 공간을 확보합니다.
 echo "### Cleaning up unused docker images..."
