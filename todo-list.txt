@@ -1,0 +1,147 @@
+# AWS CloudFront와 S3를 이용한 프론트엔드 배포 TODO 리스트
+
+이 문서는 현재 Nginx로 함께 배포되고 있는 프론트엔드와 백엔드 구조에서, 프론트엔드를 AWS S3와 CloudFront를 통해 분리 배포하는 과정을 안내합니다.
+
+---
+
+### 단계 1: 프론트엔드 정적 파일을 AWS S3로 이전 (완료)
+
+**목표: `frontend` 폴더의 `index.html`을 S3 버킷에 업로드하고, 웹사이트로 접근할 수 있도록 설정합니다.**
+
+1.  **AWS S3 버킷 생성**
+    *   AWS Management Console에 로그인 후 S3 서비스로 이동합니다.
+    *   `버킷 만들기`를 클릭합니다.
+    *   버킷 이름 입력 (예: `my-frontend-board-app`, 전역적으로 고유해야 함)
+    *   리전 선택 (예: `ap-northeast-2`, 서울)
+    *   `모든 퍼블릭 액세스 차단`의 **체크를 해제**합니다. 이는 CloudFront가 아닌 S3 자체적으로 정적 웹사이트를 호스팅할 때 필요하며, 나중에 CloudFront 전용으로 전환할 수 있습니다. 경고를 확인하고 동의합니다.
+    *   나머지 설정은 기본값으로 두고 버킷을 생성합니다.
+
+2.  **S3 버킷 정책 설정**
+    *   생성된 버킷으로 이동하여 `권한` 탭을 클릭합니다.
+    *   `버킷 정책` 섹션에서 `편집`을 누르고 다음 JSON을 붙여넣습니다.
+    *   `YOUR_BUCKET_NAME` 부분은 1번에서 만든 실제 버킷 이름으로 변경해야 합니다.
+    ```json
+    {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "PublicReadGetObject",
+                "Effect": "Allow",
+                "Principal": "*",
+                "Action": "s3:GetObject",
+                "Resource": "arn:aws:s3:::s3-hyeyeon/*"
+            }
+        ]
+    }
+    ```
+    *   `변경 사항 저장`을 클릭합니다.
+
+3.  **정적 웹 사이트 호스팅 활성화**
+    *   버킷의 `속성` 탭으로 이동합니다.
+    *   가장 아래에 있는 `정적 웹 사이트 호스팅` 섹션에서 `편집`을 클릭합니다.
+    *   `활성화`를 선택합니다.
+    *   `인덱스 문서`에 `index.html`을 입력합니다.
+    *   `변경 사항 저장`을 클릭합니다.
+    *   생성된 엔드포인트 URL(예: `http://your-bucket-name.s3-website.ap-northeast-2.amazonaws.com`)을 기록해 둡니다.
+    *   http://s3-hyeyeon.s3-website.ap-northeast-2.amazonaws.com
+
+4.  **프론트엔드 파일 업로드**
+    *   로컬 프로젝트의 `frontend` 폴더에 있는 모든 파일(`index.html` 등)을 생성한 S3 버킷에 업로드합니다.
+
+---
+
+### 단계 2: AWS CloudFront 배포 생성
+
+**목표: S3(프론트엔드)와 기존 서버(백엔드)를 연결하는 CloudFront 배포를 설정합니다.**
+
+1.  **CloudFront 배포 생성 시작**
+    *   AWS CloudFront 서비스로 이동하여 `배포 생성`을 클릭합니다.
+
+2.  **원본(Origin) 설정**
+    *   **기본 원본 (S3)**:
+        *   `원본 도메인`에서 위에서 만든 S3 버킷의 **웹사이트 엔드포인트 URL**을 선택하거나 직접 입력합니다. (arn이 아닌 http 주소)
+    *   **API용 추가 원본**:
+        *   `원본 생성`을 클릭합니다.
+        *   `원본 도메인`에 기존 백엔드 서버의 도메인(`www.gpdus4605.site`)을 입력합니다.
+        *   `프로토콜`은 `HTTPS만`을 선택합니다.
+
+3.  **동작(Behavior) 설정**
+    *   **기본 동작 (`Default(*)`):**
+        *   `원본`이 S3 버킷으로 설정되어 있는지 확인합니다.
+        *   `뷰어 프로토콜 정책`을 `Redirect HTTP to HTTPS`로 설정합니다.
+    *   **API용 동작 추가:**
+        *   `동작 생성`을 클릭합니다.
+        *   `경로 패턴`: `/api/*` 입력
+        *   `원본`: 위에서 추가한 백엔드 서버 도메인(`www.gpdus4605.site`)을 선택합니다.
+        *   `캐시 정책`: `CachingDisabled`를 선택합니다. (API 응답은 캐시되면 안 됨)
+        *   `원본 요청 정책`: `AllViewer`를 선택합니다. (인증 헤더, 쿠키 등을 모두 백엔드로 전달)
+        *   `뷰어 프로토콜 정책`: `Redirect HTTP to HTTPS`로 설정합니다.
+
+4.  **배포 생성 완료**
+    *   나머지 설정은 기본값으로 두고 `배포 생성`을 클릭합니다.
+    *   배포가 완료되기까지 몇 분 정도 소요됩니다.
+    *   완료 후 생성된 `배포 도메인 이름`(예: `d123xyz.cloudfront.net`)을 기록해 둡니다.
+
+---
+
+### 단계 3: 백엔드 CORS(Cross-Origin Resource Sharing) 설정
+
+**목표: 백엔드 Flask 서버가 CloudFront 도메인에서 오는 API 요청을 허용하도록 설정합니다.**
+
+1.  **`Flask-Cors` 설치 확인 및 추가**
+    *   `backend/requirements.txt` 파일을 열어 `Flask-Cors`가 있는지 확인합니다.
+    *   없다면, 파일에 `Flask-Cors` 한 줄을 추가하고, 가상 환경에 `pip install -r requirements.txt`를 실행하여 설치합니다.
+
+2.  **Flask 앱에 CORS 적용**
+    *   `backend/app/__init__.py` 파일을 엽니다.
+    *   아래와 같이 코드를 수정하여 CORS를 적용합니다.
+    ```python
+    from flask import Flask
+    from flask_cors import CORS  # 1. CORS 임포트
+    from .config import Config
+    # ... (다른 임포트)
+
+    def create_app():
+        app = Flask(__name__)
+        app.config.from_object(Config)
+
+        # 2. CORS 설정 추가
+        # CloudFront 도메인, 기존 도메인, 로컬 개발 환경에서의 요청을 허용합니다.
+        # "YOUR_CLOUDFRONT_DOMAIN" 부분은 단계 2에서 기록한 실제 CloudFront 도메인으로 변경해야 합니다.
+        CORS(app, resources={
+            r"/api/*": {
+                "origins": [
+                    "http://localhost:8000", 
+                    "https://www.gpdus4605.site", 
+                    "https://YOUR_CLOUDFRONT_DOMAIN"
+                ]
+            }
+        })
+
+        # ... (기존 db.init_app, migrate.init_app 등)
+        
+        return app
+    ```
+    *   **주의**: `YOUR_CLOUDFRONT_DOMAIN`을 실제 CloudFront 도메인으로 반드시 교체해야 합니다. `https://`를 포함해야 합니다.
+
+3.  **수정된 백엔드 재배포**
+    *   수정된 코드를 서버에 반영하여 다시 배포합니다. (`docker-compose up -d --build`)
+
+---
+
+### 단계 4: DNS 설정 변경
+
+**목표: 최종적으로 `www.gpdus4605.site` 도메인이 CloudFront를 가리키도록 설정합니다.**
+
+1.  **테스트**: DNS를 변경하기 전에, CloudFront 배포 도메인(예: `https://d123xyz.cloudfront.net`)으로 접속하여 사이트가 정상적으로 보이고, 로그인/게시글 조회 등의 API 기능이 모두 잘 작동하는지 완벽하게 테스트합니다.
+
+2.  **DNS 레코드 변경**
+    *   도메인을 구입한 서비스(예: AWS Route 53, 가비아, 카페24 등)의 DNS 관리 페이지로 이동합니다.
+    *   `www.gpdus4605.site`에 대한 기존 `A` 레코드를 찾습니다.
+    *   레코드 유형을 `A`에서 `CNAME`으로 변경합니다.
+    *   값(Value/Target)에 단계 2에서 기록한 **CloudFront 배포 도메인 이름**을 입력합니다.
+    *   레코드를 저장합니다.
+
+3.  **최종 확인**
+    *   DNS 변경 사항이 전 세계로 전파되는 데는 몇 분에서 몇 시간까지 걸릴 수 있습니다.
+    *   시간이 지난 후, `https://www.gpdus4605.site`로 접속하여 CloudFront를 통해 서비스가 제공되는지 최종 확인합니다.

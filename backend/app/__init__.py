@@ -30,8 +30,17 @@ def create_app():
     app.config.from_object(config_object)
 
     # --- 2. 확장 초기화 ---
-    # CORS를 앱에 적용하여 모든 출처의 요청을 허용합니다.
-    CORS(app)
+    # CORS를 앱에 적용합니다.
+    # 특정 리소스(r"/api/*")에 대해 지정된 출처(origins)의 요청만 허용합니다.
+    CORS(app, resources={
+        r"/api/*": {
+            "origins": [
+                "http://localhost:8000",
+                "https://www.gpdus4605.site",
+                "https://d3rga30rmvg69e.cloudfront.net"
+            ]
+        }
+    })
 
     # config_object의 모든 속성을 app.config에 명시적으로 다시 로드하여,
     # 동적으로 생성된 SQLALCHEMY_DATABASE_URI가 확실히 적용되도록 합니다.
