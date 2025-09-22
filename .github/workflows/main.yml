@@ -93,8 +93,7 @@ jobs:
 
           # 2단계: 프로젝트 디렉터리 내에서 실제 배포 스크립트를 실행하는 명령
           # 스크립트에 ENV_FILE과 GITHUB_SHA를 인자로 직접 전달합니다.
-          QUOTED_ENCODED_ENV=$(printf %q "$ENCODED_ENV")
-          DEPLOY_COMMAND="echo '$ENCODED_SCRIPT' | base64 --decode | bash -s $QUOTED_ENCODED_ENV '${{ github.sha }}'"
+          DEPLOY_COMMAND="echo '$ENCODED_SCRIPT' | base64 --decode | bash -s '$ENCODED_ENV' '${{ github.sha }}'"
           echo "DEBUG: Final DEPLOY_COMMAND sent to SSM:"
           echo "$DEPLOY_COMMAND"
           
