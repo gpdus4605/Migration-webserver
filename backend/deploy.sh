@@ -8,18 +8,17 @@ exec > >(tee -a /tmp/deploy.log) 2>&1
 set -e
 
 # GitHub Actions에서 전달된 인자를 사용합니다.
-# $1: ENV_FILE_CONTENT (Base64 인코딩된 값)
-# $2: GITHUB_SHA (Git 커밋 해시)
-ENCODED_ENV_FROM_ARG="$1"
-GITHUB_SHA="$2"
+# $1: GITHUB_SHA (Git 커밋 해시)
+GITHUB_SHA="$1"
 
 # GitHub Actions에서 전달된 환경 변수를 사용합니다。
+# ENV_FILE_CONTENT: Base64 인코딩된 .env 파일 내용
 # GITHUB_REPOSITORY는 'CloudDx/hyeyeon'과 같은 형태입니다。
 
 echo "### Creating .env file..."
-# GitHub Actions에서 Base64로 인코딩하여 전달한 ENV_FILE_CONTENT를
-# 서버에서 디코딩하여 .env 파일을 올바르게 생성합니다。
-DECODED_ENV_CONTENT=$(echo "${ENCODED_ENV_FROM_ARG}" | base64 --decode)
+# GitHub Actions에서 환경 변수로 전달한 ENV_FILE_CONTENT를
+# 서버에서 디코딩하여 .env 파일을 올바르게 생성합니다.
+DECODED_ENV_CONTENT=$(echo "$ENV_FILE_CONTENT" | base64 --decode)
 echo "DEBUG: Decoded ENV_FILE_CONTENT:"
 echo "${DECODED_ENV_CONTENT}"
 echo "${DECODED_ENV_CONTENT}" > .env

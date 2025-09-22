@@ -108,10 +108,10 @@ jobs:
 
           # AWS CLI를 직접 사용하여 SSM SendCommand를 실행합니다。
           # --output text로 CommandId만 추출하고, 이 ID를 사용하여 명령이 끝날 때까지 기다립니다。
-          COMMAND_ID=$(aws ssm send-command \
-            --instance-ids "${{ secrets.AWS_INSTANCE_ID }}" \
-            --document-name "AWS-RunShellScript" \
-            --parameters "{\"workingDirectory\":[\"/home/${{ secrets.SSH_USERNAME }}/onpremise-webservice\"],\"commands\":$COMMANDS_JSON}" \
+          COMMAND_ID=$(aws ssm send-command 
+            --instance-ids "${{ secrets.AWS_INSTANCE_ID }}" 
+            --document-name "AWS-RunShellScript" 
+            --parameters "{"workingDirectory":["/home/${{ secrets.SSH_USERNAME }}/onpremise-webservice"],"commands":$COMMANDS_JSON,"environmentVariables":$ENV_VARS_JSON}" 
             --output text --query "Command.CommandId")
 
           echo "SSM Command ID: $COMMAND_ID"
