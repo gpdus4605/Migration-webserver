@@ -6,6 +6,21 @@ set -e
 
 echo "### Starting entrypoint script..."
 
+echo "### Waiting for database to be ready..."
+python3 -c "
+import socket
+import time
+while True:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect(('db', 5432))
+        break
+    except (socket.gaierror, socket.error):
+        print('Waiting for database...')
+        time.sleep(1)
+"
+echo "### Database is ready."
+
 echo "### Running database migrations..."
 # python3 -m flask를 사용하여 경로 문제 없이 마이그레이션을 실행합니다.
 python3 -m flask db upgrade
