@@ -67,7 +67,17 @@ jobs:
             const scriptContent = fs.readFileSync('backend/deploy.sh', 'utf8');
             core.setOutput('script', scriptContent);
 
-      # 2-4. AWS CLI를 사용하여 원격 서버에 배포 스크립트 실행
+      # 2-4. (DEBUG) ENV_FILE_CONTENT 시크릿 값 확인
+      - name: Check if secret is empty
+        run: |
+          if [ -z "${{ secrets.ENV_FILE_CONTENT }}" ]; then
+            echo "ERROR: The ENV_FILE_CONTENT secret is empty or not accessible in the workflow."
+            exit 1
+          else
+            echo "Secret is not empty. Proceeding."
+          fi
+
+      # 2-5. AWS CLI를 사용하여 원격 서버에 배포 스크립트 실행
       - name: Deploy to server via AWS CLI and SSM
         run: |
           # 셸 파싱 오류를 원천적으로 방지하기 위해, 복잡한 문자열들을 Base64로 인코딩합니다.
