@@ -82,8 +82,8 @@ jobs:
         run: |
           # 셸 파싱 오류를 원천적으로 방지하기 위해, 복잡한 문자열들을 Base64로 인코딩합니다.
           # -w 0 옵션은 인코딩된 결과가 여러 줄로 나뉘지 않도록 합니다.
-          ENCODED_ENV=$(echo "${{ secrets.ENV_FILE_CONTENT }}" | base64 -w 0)
-          echo "DEBUG: ENCODED_ENV value:"
+          ENCODED_ENV=$(printf "%s" "${{ secrets.ENV_FILE_CONTENT }}" | base64 -w 0)
+          echo "DEBUG: ENCODED_ENV value (masked by GitHub):"
           echo "$ENCODED_ENV"
           ENCODED_SCRIPT=$(echo "${{ steps.script_reader.outputs.script }}" | base64 -w 0)
 
