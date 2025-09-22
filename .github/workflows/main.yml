@@ -106,6 +106,11 @@ jobs:
           # 이제 workingDirectory를 프로젝트 폴더로 지정하여 모든 명령이 해당 폴더 내에서 실행되도록 합니다。
           COMMANDS_JSON=$(printf '%s' "$DEPLOY_COMMAND" | jq -R . | jq -s .)
 
+          # ENV_FILE_CONTENT 시크릿을 JSON 문자열로 안전하게 이스케이프 처리합니다。
+          ESCAPED_ENV_FILE_CONTENT=$(jq -Rsa . <<< "${{ secrets.ENV_FILE_CONTENT }}")
+          # 환경 변수 JSON을 생성합니다。
+          ENV_VARS_JSON=$(printf '{\"ENV_FILE_CONTENT\":%s, \"GITHUB_SHA\":\"%s\"}' "$ESCAPED_ENV_FILE_CONTENT" "${{ github.sha }}")
+
           # AWS CLI를 직접 사용하여 SSM SendCommand를 실행합니다。
           # --output text로 CommandId만 추출하고, 이 ID를 사용하여 명령이 끝날 때까지 기다립니다。
           COMMAND_ID=$(aws ssm send-command \
