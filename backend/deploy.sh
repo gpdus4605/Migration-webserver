@@ -27,6 +27,11 @@ services:
     image: gpdus4605/onpremise-webservice:${GITHUB_SHA}
 EOF
 
+echo "### Removing conflicting containers to ensure a clean start..."
+# docker rm -f로 기존 컨테이너를 강제 삭제하여 이름 충돌을 방지합니다.
+# || true를 사용하여 컨테이너가 존재하지 않아도 오류가 발생하지 않도록 합니다.
+docker rm -f my-api my-nginx || true
+
 echo "### Restarting services with the new image..."
 # -p onpremise: 프로젝트 이름을 'onpremise'로 고정하여 항상 동일한 컨테이너 그룹을 관리하도록 합니다.
 # --env-file ./.env: 현재 디렉터리의 .env 파일을 환경 변수 파일로 명시적으로 지정합니다.
