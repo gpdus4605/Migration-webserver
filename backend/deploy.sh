@@ -33,15 +33,15 @@ echo "### Removing conflicting containers to ensure a clean start..."
 docker rm -f my-api my-nginx || true
 
 echo "### Restarting services with the new image..."
-# -p onpremise: 프로젝트 이름을 'onpremise'로 고정하여 항상 동일한 컨테이너 그룹을 관리하도록 합니다.
+# -p backend: 프로젝트 이름을 'backend'로 지정하여, 기존 DB와 동일한 네트워크를 사용하도록 합니다.
 # --env-file ./.env: 현재 디렉터리의 .env 파일을 환경 변수 파일로 명시적으로 지정합니다.
+# --no-deps: api 서비스만 재시작하고, 의존성인 db 컨테이너는 건드리지 않도록 합니다.
 # 이렇게 하면 docker-compose가 환경 변수를 확실하게 읽어들여 경고를 없애고,
 # 기존에 실행 중인 컨테이너를 '재시작(recreate)' 또는 '업데이트'하여 이름 충돌 없이 배포를 완료합니다.
 # nginx와 api 서비스만 대상으로 지정하여 certbot 컨테이너와의 충돌을 원천적으로 방지합니다.
-# --no-deps를 제거하여 api의 의존성인 db가 올바른 네트워크에 연결되도록 보장합니다.
 # -f 옵션으로 docker-compose.yml 파일의 절대 경로를 명시하여 실행 컨텍스트 문제를 완전히 해결합니다.
 # --build 옵션을 제거하여 서버에서 불필요한 빌드를 시도하지 않도록 합니다.
-docker-compose -f /home/ubuntu/onpremise-webservice/backend/docker-compose.yml -p onpremise up -d nginx api
+docker-compose -f /home/ubuntu/onpremise-webservice/backend/docker-compose.yml -p backend up -d --no-deps nginx api
 
 # api 컨테이너가 완전히 시작될 때까지 잠시 대기합니다.
 # 애플리케이션의 시작 시간에 따라 5~10초 정도의 대기 시간을 주는 것이 안정적입니다.
