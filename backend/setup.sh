@@ -1,48 +1,96 @@
 #!/bin/bash
-# 최초 서버 설정 스크립트 (setup.sh)
+# EC2 User-Data Script
 set -e
- 
-# 1. 환경변수 설정 (필요시 .env 파일 등에서 로드)
+
+# --- 1. Install Dependencies (run as root) ---
+echo "### Updating packages and installing dependencies..."
+apt-get update -y
+apt-get install -y git curl ca-certificates
+
+echo "### Installing Docker..."
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+chmod a+r /etc/apt/keyrings/docker.asc
+
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+apt-get update -y
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# Start and enable Docker service
+echo "### Starting and enabling Docker service..."
+systemctl start docker
+systemctl enable docker
+
+# Add ubuntu user to docker group for later use (e.g. CI/CD)
+usermod -aG docker ubuntu || true
+
+echo "### Docker installed and started successfully."
+
+# --- 2. Clone Repository & Run Setup (as root) ---
+# Work in the ubuntu user's home directory
+cd /home/ubuntu
+
+# Environment Variables
 export DOMAIN_NAME="www.gpdus4605.site"
 export CERTBOT_EMAIL="gpdus4605@naver.com"
-export GITHUB_REPO_URL="https://github.com/CloudDx/hyeyeon.git"
-# ... 기타 필요한 변수들 (스크립트에서 사용한다면 여기에 추가)
-
+export GITHUB_REPO_URL="https://github.com/gpdus4605/Onpremise-front-backend"
 PROJECT_DIR="onpremise-webservice"
 
-# 2. Git 리포지토리 클론
+# Git Clone
 echo "### Cloning repository..."
 git clone "$GITHUB_REPO_URL" "$PROJECT_DIR"
 cd "$PROJECT_DIR"
 
-# 3. .env 파일 생성 (수동 또는 다른 방법으로 내용 채우기)
-echo "### Please create .env file manually."
-# 예: cp .env.example .env && nano .env
-# 이 단계에서는 GitHub Secret을 사용할 수 없으므로 수동으로 생성해야 합니다.
-read -p "Press [Enter] key after creating .env file..."
+# Create .env file
+echo "### Creating .env file..."
+cat <<EOF > .env
+# PostgreSQL 데이터베이스 설정
+POSTGRES_USER=user
+POSTGRES_PASSWORD=password
+POSTGRES_DB=mydatabase
 
-# 4. SSL 인증서 발급을 위한 준비
-echo "### Issuing SSL certificate for the first time..."
-# HTTPS 설정이 없는 임시 Nginx 설정 파일을 사용합니다.
-cp nginx/certbot.conf nginx/default.conf
+# 외부 접속 포트 설정
+WEB_PORT=80
+DB_PORT=5433
 
-# 5. 임시 Nginx 실행
-docker compose up -d nginx
+JWT_SECRET_KEY=my-super-secret-key-for-docker-in-env-file
+FLASK_APP=run.py
+EOF
 
-# 6. Certbot으로 인증서 발급
+echo "### .env file created successfully."
+
+# Docker Compose and Certbot
+echo "### Preparing for SSL certificate issuance..."
+cp backend/nginx/certbot.conf backend/nginx/default.conf
+
+echo "### Starting temporary Nginx..."
+docker compose -f backend/docker-compose.yml up -d nginx
+
+echo "### Issuing SSL certificate..."
 docker run --rm \
   -v "/etc/letsencrypt:/etc/letsencrypt" \
   -v "/var/www/certbot:/var/www/certbot" \
   certbot/certbot certonly --webroot -w /var/www/certbot --force-renewal \
   --email "${CERTBOT_EMAIL}" -d "${DOMAIN_NAME}" --agree-tos -n
 
-# 7. 임시 Nginx 종료 및 설정 파일 원복
-docker compose down
-rm nginx/default.conf
-cp nginx/default.conf.prod nginx/default.conf
+echo "### Finalizing Nginx configuration..."
+docker compose -f backend/docker-compose.yml down
+rm backend/nginx/default.conf
+cp backend/nginx/default.conf.prod backend/nginx/default.conf
 
-# 8. 모든 서비스 시작 (Certbot 갱신 포함)
+# Force remove existing certbot container to avoid name conflict
+echo "### Removing conflicting certbot container if it exists..."
+docker rm -f my-certbot || true
+
 echo "### Starting all services..."
-docker compose up -d
+docker compose -f backend/docker-compose.yml up -d
+
+# --- 3. Set Ownership for ubuntu user ---
+echo "### Changing ownership to ubuntu user..."
+chown -R ubuntu:ubuntu /home/ubuntu/$PROJECT_DIR
 
 echo "### Initial setup finished successfully!"

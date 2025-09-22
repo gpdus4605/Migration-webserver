@@ -37,7 +37,8 @@ def create_app():
             "origins": [
                 "http://localhost:8000",
                 "https://www.gpdus4605.site",
-                "https://d3rga30rmvg69e.cloudfront.net"
+                "https://d3rga30rmvg69e.cloudfront.net",
+                "https://dhih6nud55l1x.cloudfront.net"
             ]
         }
     })

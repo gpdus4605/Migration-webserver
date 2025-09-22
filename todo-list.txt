@@ -50,7 +50,7 @@
 
 ---
 
-### 단계 2: AWS CloudFront 배포 생성
+### 단계 2: AWS CloudFront 배포 생성 (완료)
 
 **목표: S3(프론트엔드)와 기존 서버(백엔드)를 연결하는 CloudFront 배포를 설정합니다.**
 
@@ -60,15 +60,19 @@
 2.  **원본(Origin) 설정**
     *   **기본 원본 (S3)**:
         *   `원본 도메인`에서 위에서 만든 S3 버킷의 **웹사이트 엔드포인트 URL**을 선택하거나 직접 입력합니다. (arn이 아닌 http 주소)
+        *   배포 도메인 : dhih6nud55l1x.cloudfront.net
+
     *   **API용 추가 원본**:
         *   `원본 생성`을 클릭합니다.
         *   `원본 도메인`에 기존 백엔드 서버의 도메인(`www.gpdus4605.site`)을 입력합니다.
         *   `프로토콜`은 `HTTPS만`을 선택합니다.
+        *   배포 도메인 : d3rga30rmvg69e.cloudfront.net
 
 3.  **동작(Behavior) 설정**
     *   **기본 동작 (`Default(*)`):**
         *   `원본`이 S3 버킷으로 설정되어 있는지 확인합니다.
         *   `뷰어 프로토콜 정책`을 `Redirect HTTP to HTTPS`로 설정합니다.
+
     *   **API용 동작 추가:**
         *   `동작 생성`을 클릭합니다.
         *   `경로 패턴`: `/api/*` 입력
@@ -84,7 +88,7 @@
 
 ---
 
-### 단계 3: 백엔드 CORS(Cross-Origin Resource Sharing) 설정
+### 단계 3: 백엔드 CORS(Cross-Origin Resource Sharing) 설정 (진행 중)
 
 **목표: 백엔드 Flask 서버가 CloudFront 도메인에서 오는 API 요청을 허용하도록 설정합니다.**
 
@@ -126,6 +130,26 @@
 
 3.  **수정된 백엔드 재배포**
     *   수정된 코드를 서버에 반영하여 다시 배포합니다. (`docker-compose up -d --build`)
+
+---
+
+### 단계 3.5: 배포 문제 해결 (2025-09-20 기록)
+
+**상황 요약:**
+1.  단계 3의 CORS 해결을 위해 `backend/app/__init__.py` 파일에 코드를 수정했습니다.
+2.  수정된 코드를 GitHub에 push하여 자동 배포를 실행했으나, API가 여전히 동작하지 않았습니다.
+3.  서버의 `docker logs my-api` 명령어로 컨테이너 내부 로그를 확인했습니다.
+
+**문제 원인:**
+*   로그 분석 결과, Flask 앱(`my-api` 컨테이너)이 데이터베이스 서버 주소를 `localhost`로 찾고 있어 연결에 실패하고 있습니다 (`Connection refused`).
+*   Docker Compose 환경에서는 컨테이너 자기 자신이 아닌 다른 컨테이너에 접속하려면, `localhost` 대신 `docker-compose.yml`에 정의된 서비스 이름(이 경우 `db`)을 사용해야 합니다.
+
+**필요한 조치 (업무용 PC에서 수행할 작업):**
+1.  GitHub 리포지토리의 **Settings > Secrets and variables > Actions** 메뉴로 이동합니다.
+2.  'Repository secrets' 목록에서 **`ENV_FILE_CONTENT`**를 찾아 클릭합니다.
+3.  Secret의 내용 중 `DB_HOST=localhost` 부분을 찾아서 `DB_HOST=db`로 수정하고 저장합니다.
+4.  수정이 완료되면, GitHub Actions 탭에서 가장 최근의 워크플로우를 **재실행(Re-run all jobs)**하여 변경된 환경 변수로 서버에 재배포합니다.
+5.  재배포가 성공적으로 완료되면, 다시 이 대화에 돌아와서 저에게 알려주시면 최종 테스트를 진행하겠습니다.
 
 ---
 

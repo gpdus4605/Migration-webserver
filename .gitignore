@@ -11,4 +11,8 @@ venv/
 
 # Textfile
 buildreq.txt
+gemini.log
+todo-list.txt
+
+# Developments
 *dev*
