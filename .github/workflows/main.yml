@@ -90,11 +90,8 @@ jobs:
           GIT_COMMAND="if [ ! -d 'onpremise-webservice' ]; then git clone https://github.com/${{ github.repository }}.git onpremise-webservice; else cd onpremise-webservice && git pull origin main; fi"
 
           # 2단계: 프로젝트 디렉터리 내에서 실제 배포 스크립트를 실행하는 명령
-          # export한 환경 변수가 bash 스크립트 내에서 유효하도록 세미콜론으로 연결합니다.
-          DEPLOY_COMMAND="export GITHUB_REPOSITORY='${{ github.repository }}'; \
-                          export GITHUB_SHA='${{ github.sha }}'; \
-                          export ENV_FILE_CONTENT='$ENCODED_ENV'; \
-                          echo '$ENCODED_SCRIPT' | base64 --decode | bash"
+          # 스크립트에 ENV_FILE과 GITHUB_SHA를 인자로 직접 전달합니다.
+          DEPLOY_COMMAND="echo '$ENCODED_SCRIPT' | base64 --decode | bash -s '$ENCODED_ENV' '${{ github.sha }}'"
           
           # 1단계 실행
           aws ssm send-command --instance-ids "${{ secrets.AWS_INSTANCE_ID }}" --document-name "AWS-RunShellScript" --parameters "{\"workingDirectory\":[\"/home/${{ secrets.SSH_USERNAME }}\"],\"commands\":[\"$GIT_COMMAND\"]}" --output text > /dev/null
