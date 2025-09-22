@@ -7,6 +7,12 @@ exec > >(tee -a /tmp/deploy.log) 2>&1
 # 이 설정은 exec 이후에 위치해야 합니다.
 set -e
 
+echo "### Checking for ENV_FILE_CONTENT..."
+if [ -z "${ENV_FILE_CONTENT}" ]; then
+  echo "FATAL: ENV_FILE_CONTENT is not set. Please set the ENV_FILE_CONTENT secret in your GitHub repository settings." >&2
+  exit 1
+fi
+
 # GitHub Actions에서 전달된 환경 변수를 사용합니다.
 # GITHUB_REPOSITORY는 'CloudDx/hyeyeon'과 같은 형태입니다.
 
@@ -49,7 +55,6 @@ echo "### Waiting for services to be ready..."
 sleep 10
 
 # 사용하지 않는 Docker 이미지를 정리하여 디스크 공간을 확보합니다.
-echo "### Cleaning up unused docker images..."
 # || true를 추가하여, 삭제할 이미지가 없어 명령어가 실패하더라도 전체 스크립트가 중단되지 않도록 합니다.
 docker image prune -af || true
 
