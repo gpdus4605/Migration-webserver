@@ -14,13 +14,23 @@ ENCODED_ENV_FROM_ARG="$1"
 GITHUB_SHA="$2"
 
 # GitHub Actions에서 전달된 환경 변수를 사용합니다。
-# GITHUB_REPOSITORY는 'CloudDx/hyeyeon'과 같은 형태입니다.
+# GITHUB_REPOSITORY는 'CloudDx/hyeyeon'과 같은 형태입니다。
 
 echo "### Creating .env file..."
 # GitHub Actions에서 Base64로 인코딩하여 전달한 ENV_FILE_CONTENT를
-# 서버에서 디코딩하여 .env 파일을 올바르게 생성합니다.
+# 서버에서 디코딩하여 .env 파일을 올바르게 생성합니다。
 echo "${ENCODED_ENV_FROM_ARG}" | base64 --decode > .env
-# GitHub Actions에서 빌드한 최신 이미지를 받아옵니다.
+
+echo "### Verifying .env file content..."
+if [ -f .env ]; then
+  echo ".env file exists."
+  cat .env
+else
+  echo ".env file does NOT exist!" >&2
+  exit 1
+fi
+
+# GitHub Actions에서 빌드한 최신 이미지를 받아옵니다。
 echo "### Pulling the latest docker image..."
 docker pull gpdus4605/onpremise-webservice:${GITHUB_SHA}
  
