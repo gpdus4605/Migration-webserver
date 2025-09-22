@@ -41,7 +41,7 @@ echo "### Restarting services with the new image..."
 # nginx와 api 서비스만 대상으로 지정하여 certbot 컨테이너와의 충돌을 원천적으로 방지합니다.
 # -f 옵션으로 docker-compose.yml 파일의 절대 경로를 명시하여 실행 컨텍스트 문제를 완전히 해결합니다.
 # --build 옵션을 제거하여 서버에서 불필요한 빌드를 시도하지 않도록 합니다.
-docker-compose -f /home/ubuntu/onpremise-webservice/backend/docker-compose.yml -p backend up -d --no-deps nginx api
+docker-compose --env-file ./.env -f /home/ubuntu/onpremise-webservice/backend/docker-compose.yml -p backend up -d --no-deps nginx api
 
 # api 컨테이너가 완전히 시작될 때까지 잠시 대기합니다.
 # 애플리케이션의 시작 시간에 따라 5~10초 정도의 대기 시간을 주는 것이 안정적입니다.
