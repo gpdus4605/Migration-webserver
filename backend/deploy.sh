@@ -4,31 +4,17 @@
 exec > >(tee -a /tmp/deploy.log) 2>&1
 
 # 스크립트 실행 중 오류가 발생하면 즉시 중단하도록 설정합니다。
-# 이 설정은 exec 이후에 위치해야 합니다.
 set -e
 
-# GitHub Actions에서 전달된 인자를 사용합니다.
-# $1: Base64 인코딩된 .env 파일 내용
-# $2: GITHUB_SHA (Git 커밋 해시)
-ENCODED_ENV_CONTENT="$1"
-GITHUB_SHA="$2"
+# GITHUB_SHA는 GitHub Actions에서 환경 변수로 전달됩니다.
+echo "### Using GITHUB_SHA: ${GITHUB_SHA}"
 
-# GITHUB_REPOSITORY는 'CloudDx/hyeyeon'과 같은 형태입니다。
-
-echo "### Creating .env file..."
-# GitHub Actions에서 인자로 전달한 ENCODED_ENV_CONTENT를
-# 서버에서 디코딩하여 .env 파일을 올바르게 생성합니다.
-DECODED_ENV_CONTENT=$(echo "$ENCODED_ENV_CONTENT" | base64 --decode)
-echo "DEBUG: Decoded ENV_FILE_CONTENT:"
-echo "${DECODED_ENV_CONTENT}"
-echo "${DECODED_ENV_CONTENT}" > .env
-
-echo "### Verifying .env file content..."
+echo "### Verifying .env file..."
 if [ -f .env ]; then
   echo ".env file exists."
   cat .env
 else
-  echo ".env file does NOT exist!" >&2
+  echo ".env file does NOT exist! It should have been copied via scp." >&2
   exit 1
 fi
 
@@ -36,8 +22,7 @@ fi
 echo "### Pulling the latest docker image..."
 docker pull gpdus4605/onpremise-webservice:${GITHUB_SHA}
  
-# docker-compose.yml을 직접 수정하는 대신, docker-compose.override.yml 파일을 생성하여
-# api 서비스의 이미지를 동적으로 지정합니다. 이 방식이 더 안전하고 유연합니다.
+# docker-compose.override.yml 파일을 생성하여 api 서비스의 이미지를 동적으로 지정합니다.
 echo "### Creating docker-compose.override.yml..."
 cat <<EOF > docker-compose.override.yml
 services:
@@ -46,28 +31,18 @@ services:
 EOF
 
 echo "### Removing conflicting containers to ensure a clean start..."
-# docker rm -f로 기존 컨테이너를 강제 삭제하여 이름 충돌을 방지합니다。
-# || true를 사용하여 컨테이너가 존재하지 않아도 오류가 발생하지 않도록 합니다。
 docker rm -f my-api my-nginx || true
 
 echo "### Restarting services with the new image..."
-# -p backend: 프로젝트 이름을 'backend'로 지정하여, 기존 DB와 동일한 네트워크를 사용하도록 합니다。
-# --env-file ./.env: 현재 디렉터리의 .env 파일을 환경 변수 파일로 명시적으로 지정합니다。
-# --no-deps: api 서비스만 재시작하고, 의존성인 db 컨테이너는 건드리지 않도록 합니다。
-# 이렇게 하면 docker-compose가 환경 변수를 확실하게 읽어들여 경고를 없애고,
-# 기존에 실행 중인 컨테이너를 '재시작(recreate)' 또는 '업데이트'하여 이름 충돌 없이 배포를 완료합니다。
-# nginx와 api 서비스만 대상으로 지정하여 certbot 컨테이너와의 충돌을 원천적으로 방지합니다。
-# -f 옵션으로 docker-compose.yml 파일의 절대 경로를 명시하여 실행 컨텍스트 문제를 완전히 해결합니다。
-# --build 옵션을 제거하여 서버에서 불필요한 빌드를 시도하지 않도록 합니다。
-docker-compose --env-file ./.env -f /home/ubuntu/onpremise-webservice/backend/docker-compose.yml -p backend up -d --no-deps nginx api
+# --env-file로 .env를 명시하고, -f로 docker-compose.yml 경로를 지정하여 실행 컨텍스트 문제를 방지합니다.
+docker-compose --env-file ./.env -f docker-compose.yml -p backend up -d --no-deps nginx api
 
 # api 컨테이너가 완전히 시작될 때까지 잠시 대기합니다。
-# 애플리케이션의 시작 시간에 따라 5~10초 정도의 대기 시간을 주는 것이 안정적입니다。
 echo "### Waiting for services to be ready..."
 sleep 10
 
 # 사용하지 않는 Docker 이미지를 정리하여 디스크 공간을 확보합니다。
-# || true를 추가하여, 삭제할 이미지가 없어 명령어가 실패하더라도 전체 스크립트가 중단되지 않도록 합니다。
+echo "### Cleaning up old images..."
 docker image prune -af || true
 
 echo "### Deployment finished successfully!"

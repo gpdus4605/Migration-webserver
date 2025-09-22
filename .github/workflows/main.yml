@@ -29,7 +29,7 @@ jobs:
 
       # 1-3. Docker 이미지 빌드 및 푸시
       # Dockerfile을 사용하여 이미지를 빌드하고, Docker Hub에 푸시합니다.
-      # 이미지 태그는 고유성을 위해 Git 커밋 해시(SHA)의 앞 7자리를 사용합니다.
+      # 이미지 태그는 고유성을 위해 Git 커밋 해시(SHA)를 사용합니다.
       - name: Build and push Docker image
         run: |
           cd backend
@@ -43,11 +43,21 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      # 2-1. 소스 코드 체크아웃 (deploy.sh 파일을 읽기 위해 필요)
-      - name: Checkout source code
-        uses: actions/checkout@v4
+      # 2-1. .env 파일 생성
+      - name: Create .env file
+        run: echo "${{ secrets.ENV_FILE_CONTENT }}" > .env
 
-      # 2-2. AWS 자격 증명 설정
+      # 2-2. .env 파일을 서버로 복사
+      - name: Copy .env file to server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: ".env"
+          target: "/home/${{ secrets.SSH_USERNAME }}/onpremise-webservice/backend"
+
+      # 2-3. AWS 자격 증명 설정
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -55,88 +65,36 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # 2-3. 배포 스크립트 파일 내용 읽기
-      # actions/github-script를 사용하여 deploy.sh 파일의 내용을 읽고,
-      # 이 작업(job)의 출력(output)으로 설정합니다.
-      - name: Read deploy script file
-        id: script_reader
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const scriptContent = fs.readFileSync('backend/deploy.sh', 'utf8');
-            core.setOutput('script', scriptContent);
-
-      # 2-4. (DEBUG) ENV_FILE_CONTENT 시크릿 값 확인
-      - name: Check if secret is empty
+      # 2-4. 배포 스크립트 실행
+      - name: Execute deployment script
         run: |
-          if [ -z "${{ secrets.ENV_FILE_CONTENT }}" ]; then
-            echo "ERROR: The ENV_FILE_CONTENT secret is empty or not accessible in the workflow."
-            exit 1
-          else
-            echo "Secret is not empty. Proceeding."
-          fi
-
-      # 2-5. AWS CLI를 사용하여 원격 서버에 배포 스크립트 실행
-      - name: Deploy to server via AWS CLI and SSM
-        run: |
-          # 셸 파싱 오류를 원천적으로 방지하기 위해, 복잡한 문자열들을 Base64로 인코딩합니다.
-          # -w 0 옵션은 인코딩된 결과가 여러 줄로 나뉘지 않도록 합니다.
-          ENCODED_ENV=$(printf "%s" "${{ secrets.ENV_FILE_CONTENT }}" | base64 -w 0)
-          echo "DEBUG: ENCODED_ENV value (masked by GitHub):"
-          echo "$ENCODED_ENV"
-          ENCODED_SCRIPT=$(echo "${{ steps.script_reader.outputs.script }}" | base64 -w 0)
-
           # 1단계: Git Clone 또는 Pull을 수행하는 명령
-          # workingDirectory가 /home/ubuntu이므로, 이 위치에서 git 작업을 먼저 수행합니다.
           GIT_COMMAND="if [ ! -d 'onpremise-webservice' ]; then git clone https://github.com/${{ github.repository }}.git onpremise-webservice; else cd onpremise-webservice && git pull origin main; fi"
-
-          # 2단계: 프로젝트 디렉터리 내에서 실제 배포 스크립트를 실행하는 명령
-          # 스크립트에 ENV_FILE과 GITHUB_SHA를 인자로 직접 전달합니다.
-          DEPLOY_COMMAND="echo '$ENCODED_SCRIPT' | base64 --decode | bash -s '$ENCODED_ENV' '${{ github.sha }}'"
-          echo "DEBUG: Final DEPLOY_COMMAND sent to SSM:"
-          echo "$DEPLOY_COMMAND"
           
           # 1단계 실행
           aws ssm send-command --instance-ids "${{ secrets.AWS_INSTANCE_ID }}" --document-name "AWS-RunShellScript" --parameters "{\"workingDirectory\":[\"/home/${{ secrets.SSH_USERNAME }}\"],\"commands\":[\"$GIT_COMMAND\"]}" --output text > /dev/null
           sleep 5 # Git 작업이 완료될 시간을 줍니다.
 
-          # 2단계 실행 (배포)
-          # 이제 workingDirectory를 프로젝트 폴더로 지정하여 모든 명령이 해당 폴더 내에서 실행되도록 합니다。
-          COMMANDS_JSON=$(jq -n --arg cmd "$DEPLOY_COMMAND" '[$cmd]')
-
+          # 2단계: 배포 스크립트 실행
+          DEPLOY_COMMAND="cd /home/${{ secrets.SSH_USERNAME }}/onpremise-webservice/backend && export GITHUB_SHA=${{ github.sha }} && bash deploy.sh"
           
-
-          # AWS CLI를 직접 사용하여 SSM SendCommand를 실행합니다。
-          # --output text로 CommandId만 추출하고, 이 ID를 사용하여 명령이 끝날 때까지 기다립니다。
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ secrets.AWS_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
-            --parameters "{ \"workingDirectory\":[\"/home/${{ secrets.SSH_USERNAME }}/onpremise-webservice\"], \"commands\":$COMMANDS_JSON }" \
+            --parameters "{ \"commands\":[\"$DEPLOY_COMMAND\"] }" \
             --output text --query "Command.CommandId")
 
           echo "SSM Command ID: $COMMAND_ID"
 
-          # 명령이 끝날 때까지 대기하고, 실패 시 로그를 가져옵니다。
+          # 명령이 끝날 때까지 대기하고, 실패 시 로그를 가져옵니다.
           if ! aws ssm wait command-executed --command-id "$COMMAND_ID" --instance-id "${{ secrets.AWS_INSTANCE_ID }}"; then
             echo "--- Deployment failed. Fetching logs from /tmp/deploy.log ---"
-            # 실패한 커맨드의 로그를 가져옵니다。
             aws ssm get-command-invocation \
               --command-id "$COMMAND_ID" \
               --instance-id "${{ secrets.AWS_INSTANCE_ID }}" \
               --query "StandardOutputContent" \
               --output text
-            # 워크플로우를 실패로 마무리합니다.
             exit 1
           fi
 
-          # 배포 성공 메시지를 출력합니다。
           echo "### Deployment command sent and executed successfully."
-
-          # 마지막으로 성공한 배포의 로그를 가져와서 확인합니다。
-          echo "--- Fetching final deployment logs from server (/tmp/deploy.log) ---"
-          aws ssm get-command-invocation \
-            --command-id "$COMMAND_ID" \
-            --instance-id "${{ secrets.AWS_INSTANCE_ID }}" \
-            --query "StandardOutputContent" \
-            --output text
