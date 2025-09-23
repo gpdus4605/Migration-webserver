@@ -91,7 +91,7 @@ jobs:
           bash deploy.sh
 
           echo "### Deployment script finished."
-EOF
+          EOF
           )
 
           # AWS CLI에 전달할 ssm-params.json 파일을 생성합니다.
