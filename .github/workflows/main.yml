@@ -82,7 +82,7 @@ jobs:
 
           # Part 2: Create the .env file as the correct user.
           echo "### Creating .env file..."
-          echo "$ENCODED_ENV" | base64 --decode | sudo -u \$APP_USER tee "\$TARGET_DIR/backend/.env" > /dev/null
+          echo "$ENCODED_ENV" | base64 --decode | sudo -u \$APP_USER tee "\$TARGET_DIR/.env" > /dev/null
 
           # Part 3: Run the deployment as root.
           echo "### Running deployment script as root..."
