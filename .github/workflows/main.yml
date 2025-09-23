@@ -94,12 +94,15 @@ jobs:
           EOF
           )
 
+          # jq를 사용하여 REMOTE_SCRIPT를 JSON 형식으로 안전하게 이스케이프 처리합니다.
+          JSON_ESCAPED_SCRIPT=$(echo "$REMOTE_SCRIPT" | jq -R -s '.')
+
           # AWS SSM send-command를 사용하여 원격 스크립트를 실행합니다.
-          # 전체 스크립트를 단일 명령으로 전달합니다.
+          # JSON 파라미터를 생성하여 전달합니다.
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ secrets.AWS_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
-            --parameters "{{\"commands\": [\"$REMOTE_SCRIPT\"]}}" \
+            --parameters "{{\"commands\": [$JSON_ESCAPED_SCRIPT]}}" \
             --output text --query "Command.CommandId")
 
           echo "SSM Command ID for deployment: $COMMAND_ID"
