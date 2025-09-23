@@ -33,7 +33,7 @@ docker rm -f my-api my-nginx || true
 
 echo "### Restarting services with the new image..."
 # --env-file로 .env를 명시하고, -f로 docker-compose.yml 경로를 지정하여 실행 컨텍스트 문제를 방지합니다.
-docker-compose --env-file ./.env -f docker-compose.yml -p backend up -d --no-deps nginx api
+docker-compose -f docker-compose.yml -p backend up -d --no-deps nginx api
 
 # api 컨테이너가 완전히 시작될 때까지 잠시 대기합니다。
 echo "### Waiting for services to be ready..."
