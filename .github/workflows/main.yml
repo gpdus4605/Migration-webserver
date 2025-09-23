@@ -58,43 +58,40 @@ jobs:
           ENCODED_ENV=$(echo "${{ secrets.ENV_FILE_CONTENT }}" | base64 -w 0)
 
           # EC2 인스턴스에서 실행할 셸 스크립트를 하나의 문자열로 정의합니다.
-          # cat <<EOF 로 변경하여 ENCODED_ENV 변수가 스크립트 내에 확장되도록 합니다.
+          # 원격지에서 확장될 변수($APP_USER, $TARGET_DIR)는 \$처럼 이스케이프 처리합니다.
           REMOTE_SCRIPT=$(cat <<EOF
           set -e
           echo "### Starting deployment script on EC2 instance."
 
-          # Define user and target directory
-          APP_USER="${{ secrets.SSH_USERNAME }}"
-          TARGET_DIR="/home/$APP_USER/onpremise-webservice"
-          export HOME="/home/$APP_USER"
+          # Define user and target directory. These variables will be used throughout the script.
+          APP_USER='${{ secrets.SSH_USERNAME }}'
+          TARGET_DIR="/home/\$APP_USER/onpremise-webservice"
+
+          # Set HOME env var for git commands to use the correct .gitconfig
+          export HOME="/home/\$APP_USER"
 
           # Use sudo to run commands as the application user to avoid ownership issues.
           # This command ensures the git repository is owned by the correct user.
-          # The command is wrapped in a condition to avoid errors if the config already exists.
-          if ! sudo -u "$APP_USER" git config --global --get safe.directory "$TARGET_DIR" >/dev/null 2>&1; then
-            sudo -u "$APP_USER" git config --global --add safe.directory "$TARGET_DIR"
+          if ! sudo -u \$APP_USER git config --global --get safe.directory "\$TARGET_DIR" >/dev/null 2>&1; then
+            sudo -u \$APP_USER git config --global --add safe.directory "\$TARGET_DIR"
           fi
 
           # Check if directory exists, then clone or pull as the app user.
-          if [ ! -d "$TARGET_DIR" ]; then
+          if [ ! -d "\$TARGET_DIR" ]; then
             echo "### Cloning repository..."
-            # Clone as the app user
-            sudo -u "$APP_USER" git clone "https://github.com/${{ github.repository }}.git" "$TARGET_DIR"
+            sudo -u \$APP_USER git clone "https://github.com/${{ github.repository }}.git" "\$TARGET_DIR"
           else
             echo "### Pulling latest code..."
-            # Pull as the app user
-            cd "$TARGET_DIR"
-            sudo -u "$APP_USER" git pull origin main
+            cd "\$TARGET_DIR"
+            sudo -u \$APP_USER git pull origin main
           fi
 
           # Navigate to the backend directory
-          cd "$TARGET_DIR/backend"
+          cd "\$TARGET_DIR/backend"
 
           # Create .env file as the app user.
-          # The base64-decoded content is piped to 'tee' which is run with sudo.
-          # This correctly handles redirection and permissions.
           echo "### Creating .env file..."
-          echo "$ENCODED_ENV" | base64 --decode | sudo -u "$APP_USER" tee .env > /dev/null
+          echo "$ENCODED_ENV" | base64 --decode | sudo -u \$APP_USER tee .env > /dev/null
 
           # Verify .env file content and ownership
           echo "### Verifying .env file ownership:"
