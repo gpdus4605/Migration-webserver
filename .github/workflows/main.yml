@@ -58,13 +58,11 @@ jobs:
           ENCODED_ENV=$(echo "${{ secrets.ENV_FILE_CONTENT }}" | base64 -w 0)
 
           # EC2 인스턴스에서 실행할 셸 스크립트를 하나의 문자열로 정의합니다.
-          # Here document를 사용하여 스크립트를 작성하고, 변수를 안전하게 주입합니다.
-          REMOTE_SCRIPT=$(cat <<EOF
+          REMOTE_SCRIPT=$(cat <<'EOF'
           set -e
           echo "### Starting deployment script on EC2 instance."
           
           # 작업 디렉토리로 이동합니다.
-          # 디렉토리가 없으면 git clone을, 있으면 git pull을 수행합니다.
           if [ ! -d "/home/${{ secrets.SSH_USERNAME }}/onpremise-webservice" ]; then
             echo "### Cloning repository..."
             cd /home/${{ secrets.SSH_USERNAME }}
@@ -94,15 +92,19 @@ jobs:
           EOF
           )
 
-          # jq를 사용하여 REMOTE_SCRIPT를 JSON 형식으로 안전하게 이스케이프 처리합니다.
-          JSON_ESCAPED_SCRIPT=$(echo "$REMOTE_SCRIPT" | jq -R -s '.')
+          # AWS CLI에 전달할 ssm-params.json 파일을 생성합니다.
+          # jq를 사용하여 REMOTE_SCRIPT를 JSON에 안전하게 삽입합니다.
+          jq -n --arg script "$REMOTE_SCRIPT" \
+            --argjson instance_ids '["${{ secrets.AWS_INSTANCE_ID }}"]' \
+            '{ "DocumentName": "AWS-RunShellScript", "InstanceIds": $instance_ids, "Parameters": { "commands": [$script] } }' \
+            > ssm-params.json
 
-          # AWS SSM send-command를 사용하여 원격 스크립트를 실행합니다.
-          # JSON 파라미터를 생성하여 전달합니다.
+          echo "### Generated ssm-params.json:"
+          cat ssm-params.json
+
+          # --cli-input-json 옵션을 사용하여 원격 스크립트를 실행합니다.
           COMMAND_ID=$(aws ssm send-command \
-            --instance-ids "${{ secrets.AWS_INSTANCE_ID }}" \
-            --document-name "AWS-RunShellScript" \
-            --parameters "{{\"commands\": [$JSON_ESCAPED_SCRIPT]}}" \
+            --cli-input-json file://ssm-params.json \
             --output text --query "Command.CommandId")
 
           echo "SSM Command ID for deployment: $COMMAND_ID"
