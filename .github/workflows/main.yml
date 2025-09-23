@@ -43,21 +43,7 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      # 2-1. .env 파일 생성
-      - name: Create .env file
-        run: echo "${{ secrets.ENV_FILE_CONTENT }}" > .env
-
-      # 2-2. .env 파일을 서버로 복사
-      - name: Copy .env file to server
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: ".env"
-          target: "/home/${{ secrets.SSH_USERNAME }}/onpremise-webservice/backend"
-
-      # 2-3. AWS 자격 증명 설정
+      # 2-1. AWS 자격 증명 설정
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -65,30 +51,67 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # 2-4. 배포 스크립트 실행
+      # 2-2. 배포 스크립트 실행 (Git pull, .env 생성, 서비스 재시작)
       - name: Execute deployment script
         run: |
-          # 1단계: Git Clone 또는 Pull을 수행하는 명령
-          GIT_COMMAND="if [ ! -d 'onpremise-webservice' ]; then git clone https://github.com/${{ github.repository }}.git onpremise-webservice; else cd onpremise-webservice && git pull origin main; fi"
-          
-          # 1단계 실행
-          aws ssm send-command --instance-ids "${{ secrets.AWS_INSTANCE_ID }}" --document-name "AWS-RunShellScript" --parameters "{\"workingDirectory\":[\"/home/${{ secrets.SSH_USERNAME }}\"],\"commands\":[\"$GIT_COMMAND\"]}" --output text > /dev/null
-          sleep 5 # Git 작업이 완료될 시간을 줍니다.
+          # .env 파일 내용을 Base64로 인코딩합니다.
+          ENCODED_ENV=$(echo "${{ secrets.ENV_FILE_CONTENT }}" | base64 -w 0)
 
-          # 2단계: 배포 스크립트 실행
-          DEPLOY_COMMAND="cd /home/${{ secrets.SSH_USERNAME }}/onpremise-webservice/backend && export GITHUB_SHA=${{ github.sha }} && bash deploy.sh"
+          # EC2 인스턴스에서 실행할 셸 스크립트를 하나의 문자열로 정의합니다.
+          # Here document를 사용하여 스크립트를 작성하고, 변수를 안전하게 주입합니다.
+          REMOTE_SCRIPT=$(cat <<EOF
+          set -e
+          echo "### Starting deployment script on EC2 instance."
           
+          # 작업 디렉토리로 이동합니다.
+          # 디렉토리가 없으면 git clone을, 있으면 git pull을 수행합니다.
+          if [ ! -d "/home/${{ secrets.SSH_USERNAME }}/onpremise-webservice" ]; then
+            echo "### Cloning repository..."
+            cd /home/${{ secrets.SSH_USERNAME }}
+            git clone https://github.com/${{ github.repository }}.git onpremise-webservice
+          else
+            echo "### Pulling latest code..."
+            cd /home/${{ secrets.SSH_USERNAME }}/onpremise-webservice
+            git pull origin main
+          fi
+          
+          # backend 디렉토리로 이동합니다.
+          cd backend
+          
+          # Base64로 인코딩된 .env 파일 내용을 디코딩하여 .env 파일을 생성합니다.
+          echo "### Creating .env file..."
+          echo "$ENCODED_ENV" | base64 --decode > .env
+          
+          echo "### Verifying .env file content:"
+          cat .env
+          
+          # deploy.sh 스크립트를 실행합니다.
+          echo "### Executing deploy.sh..."
+          export GITHUB_SHA="${{ github.sha }}"
+          bash deploy.sh
+          
+          echo "### Deployment script finished."
+          EOF
+          )
+
+          # AWS SSM send-command를 사용하여 원격 스크립트를 실행합니다.
+          # 전체 스크립트를 단일 명령으로 전달합니다.
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ secrets.AWS_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
-            --parameters "{ \"commands\":[\"$DEPLOY_COMMAND\"] }" \
+            --parameters "{{\"commands\": [\"$REMOTE_SCRIPT\"]}}" \
             --output text --query "Command.CommandId")
 
-          echo "SSM Command ID: $COMMAND_ID"
+          echo "SSM Command ID for deployment: $COMMAND_ID"
 
           # 명령이 끝날 때까지 대기하고, 실패 시 로그를 가져옵니다.
           if ! aws ssm wait command-executed --command-id "$COMMAND_ID" --instance-id "${{ secrets.AWS_INSTANCE_ID }}"; then
-            echo "--- Deployment failed. Fetching logs from /tmp/deploy.log ---"
+            echo "--- Deployment failed. Fetching logs from SSM ---"
+            aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "${{ secrets.AWS_INSTANCE_ID }}" \
+              --query "StandardErrorContent" \
+              --output text
             aws ssm get-command-invocation \
               --command-id "$COMMAND_ID" \
               --instance-id "${{ secrets.AWS_INSTANCE_ID }}" \
