@@ -63,8 +63,8 @@ jobs:
           echo "### Starting deployment script on EC2 instance."
 
           # Git 소유권 문제 해결 (dubious ownership)
-          # SSM 에이전트 사용자와 디렉토리 소유자가 다를 수 있으므로 안전한 디렉토리로 추가합니다.
-          git config --global --add safe.directory /home/${{ secrets.SSH_USERNAME }}/onpremise-webservice
+          # SSM 에이전트 실행 환경에 $HOME 변수가 없어 --global 대신 --system을 사용합니다.
+          git config --system --add safe.directory /home/${{ secrets.SSH_USERNAME }}/onpremise-webservice
 
           # 작업 디렉토리로 이동합니다.
           if [ ! -d "/home/${{ secrets.SSH_USERNAME }}/onpremise-webservice" ]; then
