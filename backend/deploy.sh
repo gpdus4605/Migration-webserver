@@ -1,8 +1,4 @@
 #!/bin/bash
-# 이 스크립트의 모든 출력을 /tmp/deploy.log 파일에 기록합니다.
-# 표준 출력(stdout)과 표준 에러(stderr)를 모두 리디렉션합니다.
-exec > >(tee -a /tmp/deploy.log) 2>&1
-
 # 스크립트 실행 중 오류가 발생하면 즉시 중단하도록 설정합니다。
 set -e
 
