@@ -58,45 +58,42 @@ jobs:
           ENCODED_ENV=$(echo "${{ secrets.ENV_FILE_CONTENT }}" | base64 -w 0)
 
           # EC2 인스턴스에서 실행할 셸 스크립트를 하나의 문자열로 정의합니다.
-          # 원격지에서 확장될 변수($APP_USER, $TARGET_DIR)는 \$처럼 이스케이프 처리합니다.
+          # 복잡한 변수 확장을 피하기 위해 스크립트 구조를 단순화합니다.
           REMOTE_SCRIPT=$(cat <<EOF
           set -e
           echo "### Starting deployment script on EC2 instance."
 
-          # Define user and target directory. These variables will be used throughout the script.
+          # Define variables for clarity. These are expanded on the remote host.
           APP_USER='${{ secrets.SSH_USERNAME }}'
-          TARGET_DIR="/home/
-          # Use sudo to run commands as the application user to avoid ownership issues.
-          # This command ensures the git repository is owned by the correct user.
-          if ! sudo -u $APP_USER git config --global --get safe.directory "$TARGET_DIR" >/dev/null 2>&1; then
-            sudo -u $APP_USER git config --global --add safe.directory "$TARGET_DIR"
-          fi
+          TARGET_DIR="/home/$APP_USER/onpremise-webservice"
 
-          # Check if directory exists, then clone or pull as the app user.
-          if [ ! -d "$TARGET_DIR" ]; then
-            echo "### Cloning repository..."
-            sudo -u $APP_USER git clone "https://github.com/${{ github.repository }}.git" "$TARGET_DIR"
-          else
-            echo "### Pulling latest code..."
-            cd "$TARGET_DIR"
-            sudo -u $APP_USER git pull origin main
-          fi
+          # Part 0: Fix permissions. This is the most important step.
+          echo "### Ensuring correct ownership of $TARGET_DIR..."
+          chown -R $APP_USER:$APP_USER "$TARGET_DIR" || true
 
-          # Navigate to the backend directory
-          cd "$TARGET_DIR/backend"
+          # Part 1: Clone or Pull, running as the correct user.
+          # A subshell is used here to run commands as the APP_USER.
+          sudo -u $APP_USER bash -c "
+            set -e
+            TARGET_DIR=\"/home/${{ secrets.SSH_USERNAME }}/onpremise-webservice\"
+            export HOME=\"/home/${{ secrets.SSH_USERNAME }}\" # For git config
 
-          # Create .env file as the app user.
+            if [ ! -d \"$TARGET_DIR\" ]; then
+              echo \"### Cloning repository...\"
+              git clone \"https://github.com/${{ github.repository }}.git\" \"$TARGET_DIR\"
+            else
+              echo \"### Pulling latest code...\"
+              git -C \"$TARGET_DIR\" pull origin main
+            fi
+          "
+
+          # Part 2: Create the .env file as the correct user.
           echo "### Creating .env file..."
-          echo "$ENCODED_ENV" | base64 --decode | sudo -u $APP_USER tee .env > /dev/null
+          echo "$ENCODED_ENV" | base64 --decode | sudo -u $APP_USER tee "$TARGET_DIR/backend/.env" > /dev/null
 
-          # Verify .env file content and ownership
-          echo "### Verifying .env file ownership:"
-          ls -l .env
-          echo "### Verifying .env file content:"
-          cat .env
-
-          # Execute deploy script
-          echo "### Executing deploy.sh..."
+          # Part 3: Run the deployment as root.
+          echo "### Running deployment script as root..."
+          cd "$TARGET_DIR/backend"
           export GITHUB_SHA="${{ github.sha }}"
           bash deploy.sh
 
