@@ -76,6 +76,8 @@ jobs:
             echo "### Cloning repository..."
             sudo -u \$APP_USER git clone "https://github.com/${{ github.repository }}.git" "\$TARGET_DIR"
           else
+            echo "### Setting remote URL to ensure it's correct..."
+            sudo -u \$APP_USER git -C "\$TARGET_DIR" remote set-url origin "https://github.com/${{ github.repository }}.git"
             echo "### Pulling latest code..."
             sudo -u \$APP_USER git -C "\$TARGET_DIR" pull origin main
           fi
