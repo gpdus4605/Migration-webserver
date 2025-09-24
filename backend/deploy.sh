@@ -4,6 +4,12 @@ set -x
 # 스크립트 실행 중 오류가 발생하면 즉시 중단하도록 설정합니다.
 set -e
 
+# Nginx 로그를 저장할 디렉토리를 생성하고 권한을 설정합니다.
+echo "### Creating and setting permissions for log directory..."
+mkdir -p log/nginx
+chmod 777 log/nginx
+
+
 # GITHUB_SHA는 GitHub Actions에서 환경 변수로 전달됩니다.
 echo "### Using GITHUB_SHA: ${GITHUB_SHA}"
 
