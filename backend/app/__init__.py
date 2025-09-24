@@ -62,9 +62,6 @@ def create_app():
     app.register_blueprint(user_routes.bp, url_prefix='/users')
     app.register_blueprint(post_routes.bp, url_prefix='/posts')
 
-    # 루트 URL에 대한 라우트를 추가합니다.
-    @app.route('/')
-    def index():
-        return "Flask is running!"
+    # 루트 URL에 대한 라우트는 Nginx가 처리하므로 Flask에서 제거합니다.
 
     return app
