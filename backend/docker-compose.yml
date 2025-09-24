@@ -18,8 +18,6 @@ services:
       - /var/www/certbot:/var/www/certbot
       # frontend 디렉토리를 Nginx의 기본 웹 루트에 마운트합니다.
       - ../frontend:/usr/share/nginx/html
-    # 컨테이너 시작 시 실행할 명령어를 추가하여 파일 권한을 변경합니다.
-    command: /bin/sh -c "chmod -R 755 /usr/share/nginx/html && exec nginx -g 'daemon off;'"
     depends_on:
       - api # api 서비스가 실행되어야 nginx가 정상적으로 프록시할 수 있습니다.
     env_file:
