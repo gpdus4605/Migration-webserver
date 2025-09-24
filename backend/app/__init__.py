@@ -65,6 +65,6 @@ def create_app():
     # 루트 URL에 대한 라우트를 추가합니다.
     @app.route('/')
     def index():
-        return app.send_static_file('index.html')
+        return "Flask is running!"
 
     return app
