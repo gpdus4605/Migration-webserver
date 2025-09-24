@@ -33,7 +33,7 @@ def create_app():
     # CORS를 앱에 적용합니다.
     # 특정 리소스(r"/api/*")에 대해 지정된 출처(origins)의 요청만 허용합니다.
     CORS(app, resources={
-        r"/api/*": {
+        r"/*": {
             "origins": [
                 "http://localhost:8000",
                 "https://www.gpdus4605.site",
@@ -59,8 +59,8 @@ def create_app():
 
     from . import models
     from .routes import user_routes, post_routes
-    app.register_blueprint(user_routes.bp, url_prefix='/api/users')
-    app.register_blueprint(post_routes.bp, url_prefix='/api/posts')
+    app.register_blueprint(user_routes.bp, url_prefix='/users')
+    app.register_blueprint(post_routes.bp, url_prefix='/posts')
 
     # 루트 URL에 대한 라우트를 추가합니다.
     @app.route('/')
