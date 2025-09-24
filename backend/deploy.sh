@@ -35,11 +35,11 @@ services:
 EOF
 
 echo "### Removing conflicting containers to ensure a clean start..."
-docker rm -f my-api my-nginx || true
+docker rm -f my-api my-nginx my-log-processor || true
 
 echo "### Restarting services with the new image..."
 # -f 옵션으로 docker-compose.yml과 docker-compose.override.yml을 모두 지정합니다.
-docker-compose -f docker-compose.yml -f docker-compose.override.yml -p backend up -d --no-deps nginx api
+docker-compose -f docker-compose.yml -f docker-compose.override.yml -p backend up -d --no-deps nginx api log-processor
 
 # api 컨테이너가 완전히 시작될 때까지 잠시 대기합니다.
 echo "### Waiting for services to be ready..."
