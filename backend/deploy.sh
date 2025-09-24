@@ -1,7 +1,7 @@
 #!/bin/bash
 # 디버그 모드를 활성화하여 모든 실행 명령어를 출력합니다.
 set -x
-# 스크립트 실행 중 오류가 발생하면 즉시 중단하도록 설정합니다。
+# 스크립트 실행 중 오류가 발생하면 즉시 중단하도록 설정합니다.
 set -e
 
 # GITHUB_SHA는 GitHub Actions에서 환경 변수로 전달됩니다.
@@ -16,10 +16,10 @@ else
   exit 1
 fi
 
-# GitHub Actions에서 빌드한 최신 이미지를 받아옵니다。
-echo "### Pulling the latest docker image..."
+# GitHub Actions에서 빌드한 최신 이미지를 받아옵니다.
+echo "### Pulling the latest docker images..."
 docker pull gpdus4605/onpremise-webservice:${GITHUB_SHA}
- 
+
 # docker-compose.override.yml 파일을 생성하여 api 서비스의 이미지를 동적으로 지정합니다.
 echo "### Creating docker-compose.override.yml..."
 cat <<EOF > docker-compose.override.yml
@@ -32,14 +32,14 @@ echo "### Removing conflicting containers to ensure a clean start..."
 docker rm -f my-api my-nginx || true
 
 echo "### Restarting services with the new image..."
-# --env-file로 .env를 명시하고, -f로 docker-compose.yml 경로를 지정하여 실행 컨텍스트 문제를 방지합니다.
-docker-compose -f docker-compose.yml -p backend up -d --no-deps nginx api
+# -f 옵션으로 docker-compose.yml과 docker-compose.override.yml을 모두 지정합니다.
+docker-compose -f docker-compose.yml -f docker-compose.override.yml -p backend up -d --no-deps nginx api
 
-# api 컨테이너가 완전히 시작될 때까지 잠시 대기합니다。
+# api 컨테이너가 완전히 시작될 때까지 잠시 대기합니다.
 echo "### Waiting for services to be ready..."
 sleep 10
 
-# 사용하지 않는 Docker 이미지를 정리하여 디스크 공간을 확보합니다。
+# 사용하지 않는 Docker 이미지를 정리하여 디스크 공간을 확보합니다.
 echo "### Cleaning up old images..."
 docker image prune -af || true
 

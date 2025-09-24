@@ -39,8 +39,8 @@ cd /home/ubuntu
 # Environment Variables
 export DOMAIN_NAME="www.gpdus4605.site"
 export CERTBOT_EMAIL="gpdus4605@naver.com"
-export GITHUB_REPO_URL="https://github.com/gpdus4605/Onpremise-front-backend"
-PROJECT_DIR="onpremise-webservice"
+export GITHUB_REPO_URL="https://github.com/gpdus4605/Migration-webserver"
+PROJECT_DIR="Migration-webserver"
 
 # Git Clone
 echo "### Cloning repository..."
