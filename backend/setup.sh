@@ -1,6 +1,8 @@
 #!/bin/bash
 # EC2 User-Data Script
 set -e
+sudo timedatectl set-timezone 'Asia/Seoul'
+
 
 # --- 1. Install Dependencies (run as root) ---
 echo "### Updating packages and installing dependencies..."
@@ -64,22 +66,23 @@ EOF
 echo "### .env file created successfully."
 
 # Docker Compose and Certbot
-echo "### Preparing for SSL certificate issuance..."
-cp backend/nginx/certbot.conf backend/nginx/default.conf
+echo "### SSL certificate issuance process skipped (handled by AWS ACM/CloudFront)."
+# cp backend/nginx/certbot.conf backend/nginx/default.conf
+#
+# echo "### Starting temporary Nginx..."
+# docker compose -f backend/docker-compose.yml up -d nginx
+#
+# echo "### Issuing SSL certificate..."
+# docker run --rm \
+#   -v "/etc/letsencrypt:/etc/letsencrypt" \
+#   -v "/var/www/certbot:/var/www/certbot" \
+#   certbot/certbot certonly --webroot -w /var/www/certbot --force-renewal \
+#   --email "${CERTBOT_EMAIL}" -d "${DOMAIN_NAME}" --agree-tos -n
+#
+# echo "### Finalizing Nginx configuration..."
+# docker compose -f backend/docker-compose.yml down
+# rm backend/nginx/default.conf
 
-echo "### Starting temporary Nginx..."
-docker compose -f backend/docker-compose.yml up -d nginx
-
-echo "### Issuing SSL certificate..."
-docker run --rm \
-  -v "/etc/letsencrypt:/etc/letsencrypt" \
-  -v "/var/www/certbot:/var/www/certbot" \
-  certbot/certbot certonly --webroot -w /var/www/certbot --force-renewal \
-  --email "${CERTBOT_EMAIL}" -d "${DOMAIN_NAME}" --agree-tos -n
-
-echo "### Finalizing Nginx configuration..."
-docker compose -f backend/docker-compose.yml down
-rm backend/nginx/default.conf
 cp backend/nginx/default.conf.prod backend/nginx/default.conf
 
 # Force remove existing certbot container to avoid name conflict

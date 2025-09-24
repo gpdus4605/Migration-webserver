@@ -1,3 +1,4 @@
+
 # AWS CloudFront와 S3를 이용한 프론트엔드 배포 TODO 리스트
 
 이 문서는 현재 Nginx로 함께 배포되고 있는 프론트엔드와 백엔드 구조에서, 프론트엔드를 AWS S3와 CloudFront를 통해 분리 배포하는 과정을 안내합니다.
@@ -115,9 +116,10 @@
         CORS(app, resources={
             r"/api/*": {
                 "origins": [
-                    "http://localhost:8000", 
-                    "https://www.gpdus4605.site", 
-                    "https://YOUR_CLOUDFRONT_DOMAIN"
+                    "http://localhost:8000",
+                    "https://www.gpdus4605.site",
+                    "https://d3rga30rmvg69e.cloudfront.net",
+                    "https://dhih6nud55l1x.cloudfront.net"
                 ]
             }
         })
@@ -133,39 +135,70 @@
 
 ---
 
-### 단계 3.5: 배포 문제 해결 (2025-09-20 기록)
+### 단계 3.5: AWS Certificate Manager (ACM) 및 CloudFront HTTPS 설정 (완료)
 
-**상황 요약:**
-1.  단계 3의 CORS 해결을 위해 `backend/app/__init__.py` 파일에 코드를 수정했습니다.
-2.  수정된 코드를 GitHub에 push하여 자동 배포를 실행했으나, API가 여전히 동작하지 않았습니다.
-3.  서버의 `docker logs my-api` 명령어로 컨테이너 내부 로그를 확인했습니다.
+**목표: `www.gpdus4605.site` 도메인에 대한 SSL 인증서를 발급받고, CloudFront를 통해 HTTPS를 활성화합니다.**
 
-**문제 원인:**
-*   로그 분석 결과, Flask 앱(`my-api` 컨테이너)이 데이터베이스 서버 주소를 `localhost`로 찾고 있어 연결에 실패하고 있습니다 (`Connection refused`).
-*   Docker Compose 환경에서는 컨테이너 자기 자신이 아닌 다른 컨테이너에 접속하려면, `localhost` 대신 `docker-compose.yml`에 정의된 서비스 이름(이 경우 `db`)을 사용해야 합니다.
+**0. 서버 환경 사전 구성 (완료)**
+    *   **Nginx 설정 변경**: `backend/nginx/default.conf.prod` 파일에서 SSL 관련 설정을 제거하고 80번 포트로만 통신하도록 수정했습니다. (CloudFront의 'HTTP Only' Origin 설정을 위함)
+    *   **`setup.sh` 스크립트 정리**: `backend/setup.sh` 파일에서 불필요해진 Certbot 관련 로직을 주석 처리했습니다.
 
-**필요한 조치 (업무용 PC에서 수행할 작업):**
-1.  GitHub 리포지토리의 **Settings > Secrets and variables > Actions** 메뉴로 이동합니다.
-2.  'Repository secrets' 목록에서 **`ENV_FILE_CONTENT`**를 찾아 클릭합니다.
-3.  Secret의 내용 중 `DB_HOST=localhost` 부분을 찾아서 `DB_HOST=db`로 수정하고 저장합니다.
-4.  수정이 완료되면, GitHub Actions 탭에서 가장 최근의 워크플로우를 **재실행(Re-run all jobs)**하여 변경된 환경 변수로 서버에 재배포합니다.
-5.  재배포가 성공적으로 완료되면, 다시 이 대화에 돌아와서 저에게 알려주시면 최종 테스트를 진행하겠습니다.
+1.  **ACM에서 SSL 인증서 발급:**
+    *   AWS Management Console에 로그인하여 **Certificate Manager** 서비스로 이동합니다.
+    *   `인증서 요청`을 클릭합니다.
+    *   `퍼블릭 인증서 요청`을 선택하고 `다음`을 클릭합니다.
+    *   `도메인 이름 추가` 섹션에 `www.gpdus4605.site`와 `gpdus4605.site`를 모두 입력합니다.
+    *   **중요:** CloudFront와 연동하려면 인증서는 **미국 동부(버지니아 북부) `us-east-1` 리전**에서 발급받아야 합니다.
+    *   `검증 방법`으로 `DNS 검증`을 선택합니다.
+    *   `요청`을 클릭합니다.
+    *   ACM 콘솔에서 생성된 인증서를 선택하고 제공되는 CNAME 정보를 확인합니다. (Route 53 사용 시 자동 생성, **다른 DNS 사용 시 수동 추가**)
+    *   **가비아 등 외부 DNS 공급자**에 해당 CNAME 레코드를 추가합니다. (예: `_614b7fbdb466842f09fb5563b5f9ee4c` -> `_f53999a3fec86c5b6c44df591dc96699.xlfgrmvvlj.acm-validations.aws.`)
+    *   **참고:** 인증서 자동 갱신을 위해 이 CNAME 레코드는 삭제하지 않고 계속 유지해야 합니다.
+    *   인증서 상태가 `발급됨`으로 변경될 때까지 기다립니다.
+
+2.  **CloudFront 배포에 ACM 인증서 연결 및 원본/동작 설정 변경:**
+    *   AWS CloudFront 콘솔로 이동하여 API용 CloudFront 배포(`d3rga30rmvg69e.cloudfront.net`)를 선택하고 `배포 설정`으로 이동합니다.
+    *   **`일반` 탭**에서 `편집`을 클릭합니다.
+    *   **`대체 도메인 이름 (CNAME)`** 섹션에 `www.gpdus4605.site`를 추가합니다.
+    *   **`사용자 지정 SSL 인증서 (Custom SSL certificate)`** 섹션에서 ACM에서 발급받은 `www.gpdus4605.site` 인증서(us-east-1 리전)를 선택합니다.
+    *   **`원본` 탭**으로 이동하여 API 원본(Nginx가 실행 중인 EC2)을 선택하고 `편집`을 클릭합니다.
+        *   **`원본 도메인`**: EC2 인스턴스의 퍼블릭 IP 주소는 직접 입력할 수 없습니다. **가비아 DNS에 `A` 레코드로 `ec2.gpdus4605.site`를 생성하고 EC2 IP(`43.203.220.225`)를 연결한 후, 여기에 `ec2.gpdus4605.site`를 입력합니다.**
+        *   **`원본 프로토콜 정책 (Origin Protocol Policy)`**: **`HTTP Only`**를 선택합니다.
+        *   **`원본 사용자 지정 헤더 (Origin Custom Headers)`**: `Host` 헤더는 여기에 설정할 수 없으므로 비워둡니다.
+    *   **`동작(Behaviors)` 탭**으로 이동하여 다음을 설정합니다.
+        *   **`기본값(*)` 동작 편집:**
+            *   `원본 요청 정책 (Origin request policy)`: **`Managed-AllViewer`** 로 설정합니다. (Host 헤더를 포함한 모든 뷰어 요청 정보를 원본으로 전달)
+            *   `캐시 정책 (Cache policy)`: **`UseOriginCacheHeaders-QueryStrings`** 로 설정합니다. (쿼리스트링을 캐시 키에 포함하여 올바른 캐싱 동작 보장)
+        *   **`/api/*` 동작 확인:**
+            *   `원본 요청 정책`이 `Managed-AllViewer`로, `캐시 정책`이 `Managed-CachingDisabled`로 설정되어 있는지 확인합니다. (API는 캐시하지 않음)
+    *   변경 사항을 저장하고 CloudFront 배포가 다시 배포될 때까지 기다립니다.
 
 ---
 
-### 단계 4: DNS 설정 변경
+### 단계 4: 최종 DNS 설정 변경 (완료)
 
-**목표: 최종적으로 `www.gpdus4605.site` 도메인이 CloudFront를 가리키도록 설정합니다.**
+**목표: 최종적으로 `www.gpdus4605.site` 도메인이 CloudFront를 가리키도록 설정하고, 루트 도메인 리디렉션을 구성합니다.**
 
-1.  **테스트**: DNS를 변경하기 전에, CloudFront 배포 도메인(예: `https://d123xyz.cloudfront.net`)으로 접속하여 사이트가 정상적으로 보이고, 로그인/게시글 조회 등의 API 기능이 모두 잘 작동하는지 완벽하게 테스트합니다.
+1.  **가비아 DNS 설정 확인 및 변경:**
+    *   도메인을 구입한 서비스(가비아)의 DNS 관리 페이지로 이동합니다.
+    *   **`www.gpdus4605.site`:**
+        *   기존 `A` 레코드를 삭제하고, `CNAME` 레코드를 추가합니다.
+        *   **타입:** `CNAME`
+        *   **호스트:** `www`
+        *   **값/위치:** CloudFront 배포 도메인 이름 (예: `d3rga30rmvg69e.cloudfront.net`)
+    *   **`gpdus4605.site` (루트 도메인 `@`):**
+        *   기존 `A` 레코드를 삭제하고, 가비아의 **도메인 포워딩 서비스**를 이용하여 `https://www.gpdus4605.site`로 리디렉션되도록 설정합니다.
+        *   **포워딩 방식:** `유동 포워딩` 선택
+        *   **연결 주소:** `https://www.gpdus4605.site` 입력
+        *   **주의:** 이 설정이 `www` 레코드를 덮어쓰지 않도록 주의합니다.
+    *   **`ec2.gpdus4605.site` (CloudFront 원본용):**
+        *   `A` 레코드를 추가합니다.
+        *   **타입:** `A`
+        *   **호스트:** `ec2`
+        *   **값/위치:** EC2 인스턴스의 퍼블릭 IP 주소 (`43.203.220.225`)
+    *   **불필요한 레코드 삭제:**
+        *   `A * 121.254.178.230` 와일드카드 레코드 등 불필요한 레코드는 삭제하여 DNS 설정을 명확하게 유지합니다.
 
-2.  **DNS 레코드 변경**
-    *   도메인을 구입한 서비스(예: AWS Route 53, 가비아, 카페24 등)의 DNS 관리 페이지로 이동합니다.
-    *   `www.gpdus4605.site`에 대한 기존 `A` 레코드를 찾습니다.
-    *   레코드 유형을 `A`에서 `CNAME`으로 변경합니다.
-    *   값(Value/Target)에 단계 2에서 기록한 **CloudFront 배포 도메인 이름**을 입력합니다.
-    *   레코드를 저장합니다.
-
-3.  **최종 확인**
+2.  **최종 확인**
     *   DNS 변경 사항이 전 세계로 전파되는 데는 몇 분에서 몇 시간까지 걸릴 수 있습니다.
     *   시간이 지난 후, `https://www.gpdus4605.site`로 접속하여 CloudFront를 통해 서비스가 제공되는지 최종 확인합니다.
