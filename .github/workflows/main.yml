@@ -90,6 +90,7 @@ jobs:
           echo "### Running deployment script as root..."
           cd "\$TARGET_DIR/backend"
           export GITHUB_SHA="${{ github.sha }}"
+          export SLACK_WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL }}"
           bash deploy.sh
 
           echo "### Deployment script finished."

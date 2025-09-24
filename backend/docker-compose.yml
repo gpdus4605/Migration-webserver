@@ -56,6 +56,21 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
+  # 4. Log Processor 서비스 정의
+  log-processor:
+    build: .
+    container_name: my-log-processor
+    command: sh -c "while true; do python log_processor.py; echo 'Log processor ran. Sleeping for 10 minutes.'; sleep 600; done"
+    volumes:
+      # Nginx 로그 처리를 위해 호스트의 로그 디렉토리를 마운트합니다.
+      # log_processor.py 스크립트가 /app/log/nginx 경로에서 로그를 찾도록 설정되어 있습니다.
+      - ./log/nginx:/app/log/nginx
+    environment:
+      # docker-compose 실행 시점의 환경 변수 값을 컨테이너 내부로 전달합니다.
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+    depends_on:
+      - api
+
 # 4. Docker 볼륨 정의
 volumes:
   postgres-data:
