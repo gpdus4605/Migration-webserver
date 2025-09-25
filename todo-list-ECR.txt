@@ -1,8 +1,8 @@
-# To-Do List: Docker Hub에서 AWS ECR로 마이그레이션
+# To-Do List: Docker Hub에서 AWS ECR로 마이그레이션 [완료]
 
 Docker Hub 장애에 대응하고 안정적인 배포 환경을 구축하기 위해, 컨테이너 이미지 저장소를 AWS ECR (Elastic Container Registry)로 전환합니다.
 
-## 1. AWS ECR 리포지토리 생성 (AWS Console)
+## 1. AWS ECR 리포지토리 생성 (AWS Console) [완료]
 
 - **목표:** Docker 이미지를 저장할 ECR 리포지토리를 생성합니다.
 - **방법:**
@@ -12,7 +12,7 @@ Docker Hub 장애에 대응하고 안정적인 배포 환경을 구축하기 위
     4. 리포지토리 이름을 `onpremise-webservice` (기존 이미지 이름과 유사하게)로 설정하고, 다른 설정은 기본값으로 둡니다.
     5. 리포지토리를 생성하고, 생성된 리포지토리의 **URI**를 복사해둡니다. (예: `123456789012.dkr.ecr.ap-northeast-2.amazonaws.com/onpremise-webservice`)
 
-## 2. GitHub Actions 워크플로우 수정 (`.github/workflows/main.yml`)
+## 2. GitHub Actions 워크플로우 수정 (`.github/workflows/main.yml`) [완료]
 
 - **목표:** GitHub Actions가 Docker Hub 대신 ECR에 이미지를 빌드하고 푸시하도록 수정합니다.
 - **사전 작업: GitHub Secrets 설정**
@@ -56,7 +56,7 @@ Docker Hub 장애에 대응하고 안정적인 배포 환경을 구축하기 위
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
     ```
 
-## 3. `docker-compose.yml` 수정
+## 3. `docker-compose.yml` 수정 [완료]
 
 - **목표:** `docker-compose`가 Docker Hub가 아닌 ECR에서 이미지를 가져오도록 수정합니다.
 - **방법:**
@@ -73,7 +73,7 @@ Docker Hub 장애에 대응하고 안정적인 배포 환경을 구축하기 위
         # ... (나머지 설정)
     ```
 
-## 4. EC2 배포 스크립트 수정 (`backend/deploy.sh`)
+## 4. EC2 배포 스크립트 수정 (`backend/deploy.sh`) [완료]
 
 - **목표:** EC2 인스턴스가 ECR에서 이미지를 pull 받을 수 있도록 인증 과정을 추가하고, 동적 이미지 URI를 전달합니다.
 - **사전 작업: EC2 인스턴스에 IAM 역할 부여**
@@ -121,7 +121,7 @@ Docker Hub 장애에 대응하고 안정적인 배포 환경을 구축하기 위
     echo "Deployment completed with image: $ECR_IMAGE_URI"
     ```
 
-## 5. 변경사항 커밋 및 푸시
+## 5. 변경사항 커밋 및 푸시 [완료]
 
 - **목표:** 수정된 `.github/workflows/main.yml`, `backend/docker-compose.yml`, `backend/deploy.sh` 파일을 리포지토리에 반영하여 새로운 CI/CD 파이프라인을 트리거합니다.
 - **방법:**
