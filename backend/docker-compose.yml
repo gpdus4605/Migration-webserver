@@ -19,7 +19,7 @@ services:
     depends_on:
       - api # api 서비스가 실행되어야 nginx가 정상적으로 프록시할 수 있습니다.
     env_file:
-            - .env
+            - ../.env
 
 
   # 2. API 서버 서비스 정의
@@ -38,7 +38,7 @@ services:
     depends_on:
       - db
     env_file:
-            - .env
+            - ../.env
 
 
   # 3. PostgreSQL 데이터베이스 서비스 정의
@@ -47,7 +47,7 @@ services:
     image: postgres:14-alpine
     container_name: my-postgres-db
     env_file:
-            - .env
+            - ../.env
 
     # .env 파일에 정의된 DB_PORT(5433)를 컨테이너의 5432 포트로 연결합니다.
     ports:
@@ -79,7 +79,7 @@ services:
       # log_processor.py 스크립트가 /usr/src/app/log/nginx 에서 파일을 찾으므로 경로를 맞춰줍니다.
       - ./log/nginx:/usr/src/app/log/nginx
     env_file:
-      - .env
+      - ../.env
     depends_on:
       - api
 
