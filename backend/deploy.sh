@@ -16,7 +16,7 @@ fi
 # Nginx 로그를 저장할 디렉토리를 생성하고 권한을 설정합니다.
 echo "### Creating and setting permissions for log directory..."
 mkdir -p log/nginx
-chmod 777 log/nginx
+chmod -R 777 log
 
 # .env 파일 존재 여부를 확인합니다.
 echo "### Verifying .env file..."

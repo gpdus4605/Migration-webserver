@@ -70,8 +70,8 @@ services:
         do
           echo '>>> Running log_processor.py...'
           python3 log_processor.py;
-          echo '>>> Log processor finished. Sleeping for 10 minutes.';
-          sleep 600;
+          echo '>>> Log processor finished. Sleeping for 1 minute.';
+          sleep 60;
         done
       "
     volumes:
