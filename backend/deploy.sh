@@ -29,6 +29,8 @@ fi
 echo "### Checking for AWS CLI..."
 if ! command -v aws &> /dev/null; then
     echo "AWS CLI not found, installing..."
+    # yum 또는 apt-get을 사용하여 unzip 설치 시도
+    sudo yum install -y unzip || (sudo apt-get update -y && sudo apt-get install -y unzip)
     curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
     unzip -q awscliv2.zip
     sudo ./aws/install
