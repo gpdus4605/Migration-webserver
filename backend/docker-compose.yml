@@ -78,9 +78,6 @@ services:
       # Nginx 로그 처리를 위해 호스트의 로그 디렉토리를 컨테이너의 올바른 경로에 마운트합니다.
       # log_processor.py 스크립트가 /usr/src/app/log/nginx 에서 파일을 찾으므로 경로를 맞춰줍니다.
       - ./log/nginx:/usr/src/app/log/nginx
-    environment:
-      # docker-compose 실행 시점의 환경 변수 값을 컨테이너 내부로 전달합니다.
-      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
     env_file:
       - .env
     depends_on:
