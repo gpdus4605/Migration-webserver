@@ -73,11 +73,8 @@ jobs:
           # .env 파일 내용을 Base64로 인코딩합니다.
           ENCODED_ENV=$(echo "${{ secrets.ENV_FILE_CONTENT }}" | base64 -w 0)
           
-          # deploy.sh 스크립트에 전달할 ECR 이미지 URI
-          # 셸 주입 공격을 방지하기 위해 작은따옴표로 감쌉니다.
-          ECR_IMAGE_URI_ARG="'${{ env.ECR_IMAGE_URI }}'"
-
           # EC2 인스턴스에서 실행할 셸 스크립트를 정의합니다.
+          # heredoc 내부에서 $ECR_IMAGE_URI 변수가 확장되도록 하여 deploy.sh에 인자로 전달합니다.
           REMOTE_SCRIPT=$(cat <<EOF
           set -e
           echo "### Starting deployment script on EC2 instance."
@@ -104,7 +101,7 @@ jobs:
           echo "### Running deployment script as root..."
           cd "\$TARGET_DIR/backend"
           # deploy.sh에 ECR 이미지 URI를 인자로 전달합니다.
-          bash deploy.sh $ECR_IMAGE_URI_ARG
+          bash deploy.sh '$ECR_IMAGE_URI'
 
           echo "### Deployment script finished."
           EOF
