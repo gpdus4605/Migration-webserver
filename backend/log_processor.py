@@ -7,6 +7,7 @@ from datetime import datetime
 
 # --- 설정 --- #
 LOG_DIR = os.path.join(os.path.dirname(__file__), 'log', 'nginx')
+STATE_FILE_PATH = os.path.join(LOG_DIR, 'last_processed_position.txt')
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 
 def send_notification(log_data):
@@ -15,7 +16,6 @@ def send_notification(log_data):
         print("[에러] SLACK_WEBHOOK_URL 환경 변수가 설정되지 않았습니다.")
         return
 
-    # Slack 메시지 서식을 보기 좋게 구성합니다. (Block Kit)
     message = {
         "blocks": [
             {
@@ -28,10 +28,14 @@ def send_notification(log_data):
             {
                 "type": "section",
                 "fields": [
-                    {"type": "mrkdwn", "text": f"*Timestamp:*\n`{log_data.get('timestamp')}`"},
-                    {"type": "mrkdwn", "text": f"*Status Code:*\n`{log_data.get('status')}`"},
-                    {"type": "mrkdwn", "text": f"*Client IP:*\n`{log_data.get('client_ip')}`"},
-                    {"type": "mrkdwn", "text": f"*Request:*\n`{log_data.get('request_method')} {log_data.get('request_uri')}`"}
+                    {"type": "mrkdwn", "text": f"*Timestamp:*
+`{log_data.get('timestamp')}`"},
+                    {"type": "mrkdwn", "text": f"*Status Code:*
+`{log_data.get('status')}`"},
+                    {"type": "mrkdwn", "text": f"*Client IP:*
+`{log_data.get('client_ip')}`"},
+                    {"type": "mrkdwn", "text": f"*Request:*
+`{log_data.get('request_method')} {log_data.get('request_uri')}`"}
                 ]
             },
             {
@@ -48,11 +52,25 @@ def send_notification(log_data):
 
     try:
         response = requests.post(SLACK_WEBHOOK_URL, json=message)
-        response.raise_for_status()  # 2xx 응답이 아닐 경우 예외 발생
+        response.raise_for_status()
         print(f"[알림 성공] 5xx 에러 로그를 Slack으로 전송했습니다.")
     except requests.exceptions.RequestException as e:
         print(f"[알림 실패] Slack으로 알림을 보내는 중 오류가 발생했습니다: {e}")
 
+def get_last_position():
+    """상태 파일에서 마지막으로 처리한 파일 위치를 읽어옵니다."""
+    if not os.path.exists(STATE_FILE_PATH):
+        return 0
+    with open(STATE_FILE_PATH, 'r') as f:
+        try:
+            return int(f.read().strip())
+        except ValueError:
+            return 0
+
+def save_last_position(position):
+    """상태 파일에 마지막으로 처리한 파일 위치를 저장합니다."""
+    with open(STATE_FILE_PATH, 'w') as f:
+        f.write(str(position))
 
 def process_logs_for_date(date_str):
     """특정 날짜의 로그 파일을 처리합니다."""
@@ -65,35 +83,40 @@ def process_logs_for_date(date_str):
 
     print(f"로그 처리 시작: {log_file_path}")
     
-    # TODO: 이미 처리한 로그를 다시 처리하지 않도록 파일의 마지막 위치를 기록하고, 그 이후부터 읽도록 구현해야 합니다.
+    last_position = get_last_position()
+    current_size = os.path.getsize(log_file_path)
+
+    # 로그 파일이 초기화되었는지 확인 (파일 크기가 줄어든 경우)
+    if last_position > current_size:
+        print("로그 파일이 초기화되었습니다. 처음부터 다시 처리합니다.")
+        last_position = 0
+
     with open(log_file_path, 'r') as f:
-        for line in f:
+        f.seek(last_position)
+        new_logs = f.readlines()
+        
+        for line in new_logs:
             try:
                 log_entry = json.loads(line.strip())
                 
-                # 5xx 에러 감지
                 if 'status' in log_entry and 500 <= int(log_entry['status']) < 600:
                     send_notification(log_entry)
 
             except (json.JSONDecodeError, ValueError):
-                # JSON 파싱 오류 또는 int 변환 오류를 함께 처리
                 print(f"로그 라인 처리 오류: {line.strip()}")
             except Exception as e:
                 print(f"알 수 없는 오류 발생: {e}")
 
+    save_last_position(current_size)
     print(f"로그 처리 완료: {log_file_path}")
 
 if __name__ == "__main__":
-    # --- DEBUG: 모든 환경 변수 출력 ---
     import os
     print("--- All Environment Variables ---")
     for key, value in os.environ.items():
         print(f'{key}={value}')
     print("---------------------------------")
-    # ------------------------------------
 
-    # 스크립트 실행 시 오늘 날짜의 로그를 처리합니다.
-    # Cronjob으로 실행될 것을 가정합니다.
     if not SLACK_WEBHOOK_URL:
         print("[시작 실패] SLACK_WEBHOOK_URL 환경 변수가 필요합니다.")
     else:

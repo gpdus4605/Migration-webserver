@@ -33,7 +33,6 @@ def create_post(current_user):
 @bp.route('', methods=['GET'])
 def get_posts():
     """전체 게시글 목록 조회 API"""
-    1 / 0  # 500 에러 발생을 위한 임시 코드
     # 모든 게시글을 created_at 기준으로 내림차순(최신순)으로 정렬하여 가져옵니다.
     posts = Post.query.order_by(Post.created_at.desc()).all()
 
