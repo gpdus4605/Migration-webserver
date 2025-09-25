@@ -60,10 +60,23 @@ services:
   log-processor:
     build: .
     container_name: my-log-processor
-    entrypoint: /bin/sh -c "while true; do python log_processor.py; echo 'Log processor ran. Sleeping for 10 minutes.'; sleep 600; done"
+    # Dockerfile의 ENTRYPOINT를 유지한 채, CMD를 오버라이드하여 주기적으로 log_processor.py를 실행하는 루프를 만듭니다.
+    # 'entrypoint.sh'가 최종적으로 이 command를 실행하게 됩니다.
+    command: >
+      sh -c "
+        echo '>>> Starting log processor loop...'
+        while true;
+        do
+          echo '>>> Running log_processor.py...'
+          python3 log_processor.py;
+          echo '>>> Log processor finished. Sleeping for 10 minutes.';
+          sleep 600;
+        done
+      "
     volumes:
-      # Nginx 로그 처리를 위해 호스트의 로그 디렉토리를 마운트합니다.
-      - ./log/nginx:/app/log/nginx
+      # Nginx 로그 처리를 위해 호스트의 로그 디렉토리를 컨테이너의 올바른 경로에 마운트합니다.
+      # log_processor.py 스크립트가 /usr/src/app/log/nginx 에서 파일을 찾으므로 경로를 맞춰줍니다.
+      - ./log/nginx:/usr/src/app/log/nginx
     environment:
       # docker-compose 실행 시점의 환경 변수 값을 컨테이너 내부로 전달합니다.
       - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
