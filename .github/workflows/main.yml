@@ -79,8 +79,8 @@ jobs:
           echo "### DEBUG: Reconstructed ECR_IMAGE_URI is: [$ECR_IMAGE_URI]"
 
           # .env 파일 내용을 구성하고 Base64로 인코딩합니다.
-          # 기존 .env 내용과 Slack 웹훅 URL을 결합합니다.
-          ENV_CONTENT="${{ secrets.ENV_FILE_CONTENT }}\nSLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }}"
+          # printf를 사용하여 줄바꿈 문자를 올바르게 처리합니다.
+          ENV_CONTENT=$(printf "%s\n%s" "${{ secrets.ENV_FILE_CONTENT }}" "SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }}")
           ENCODED_ENV=$(echo "$ENV_CONTENT" | base64 -w 0)
           
           # EC2 인스턴스에서 실행할 셸 스크립트를 정의합니다.
