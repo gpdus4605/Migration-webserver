@@ -52,6 +52,9 @@ echo "### Pulling the latest api image from ECR..."
 # docker-compose.yml에 명시된 `api` 서비스의 이미지를 가져옵니다.
 docker-compose -f docker-compose.yml -p backend pull api
 
+echo "### Forcibly rebuilding log-processor image..."
+docker-compose -f docker-compose.yml -p backend build log-processor
+
 # 충돌을 방지하기 위해 기존 컨테이너를 삭제합니다.
 echo "### Removing conflicting containers to ensure a clean start..."
 docker rm -f my-api my-nginx my-log-processor || true

@@ -84,6 +84,14 @@ def process_logs_for_date(date_str):
     print(f"로그 처리 완료: {log_file_path}")
 
 if __name__ == "__main__":
+    # --- DEBUG: 모든 환경 변수 출력 ---
+    import os
+    print("--- All Environment Variables ---")
+    for key, value in os.environ.items():
+        print(f'{key}={value}')
+    print("---------------------------------")
+    # ------------------------------------
+
     # 스크립트 실행 시 오늘 날짜의 로그를 처리합니다.
     # Cronjob으로 실행될 것을 가정합니다.
     if not SLACK_WEBHOOK_URL:
