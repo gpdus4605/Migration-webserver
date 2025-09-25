@@ -62,7 +62,7 @@ docker rm -f my-api my-nginx my-log-processor || true
 echo "### Restarting services with the new image..."
 # `docker-compose.override.yml` 없이 `docker-compose.yml`만 사용합니다.
 # --build 플래그를 추가하여 log-processor 이미지를 항상 새로 빌드하도록 강제합니다.
-docker-compose -f docker-compose.yml -p backend up -d --build --no-deps nginx api log-processor
+docker-compose -f docker-compose.yml -p backend up -d --force-recreate --build --no-deps nginx api log-processor
 
 # api 컨테이너가 완전히 시작될 때까지 잠시 대기합니다.
 echo "### Waiting for services to be ready..."
