@@ -71,6 +71,7 @@ jobs:
           ECR_IMAGE_URI: ${{ needs.build-and-push.outputs.ecr_image_uri }}
         run: |
           # .env 파일 내용을 Base64로 인코딩합니다.
+          echo "### DEBUG: ECR_IMAGE_URI from env is: [$ECR_IMAGE_URI]"
           ENCODED_ENV=$(echo "${{ secrets.ENV_FILE_CONTENT }}" | base64 -w 0)
           
           # EC2 인스턴스에서 실행할 셸 스크립트를 정의합니다.
