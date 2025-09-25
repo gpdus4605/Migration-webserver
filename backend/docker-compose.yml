@@ -24,8 +24,9 @@ services:
 
   # 2. API 서버 서비스 정의
   api:
-    # 현재 디렉터리의 Dockerfile을 사용하여 이미지를 빌드합니다.
-    build: .
+    # GitHub Actions에서 빌드하여 ECR에 푸시한 이미지를 사용합니다.
+    # ECR_IMAGE_URI 변수는 배포 스크립트(deploy.sh)에서 주입합니다.
+    image: ${ECR_IMAGE_URI}
     # 컨테이너의 이름을 'my-api'로 지정합니다.
     container_name: my-api
     environment:

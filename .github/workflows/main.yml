@@ -9,41 +9,19 @@ on:
 
 # 워크플로우에서 실행될 작업(job)들을 정의합니다.
 jobs:
-  # 1. CI: Docker 이미지를 빌드하고 Docker Hub에 푸시하는 작업
+  # 1. CI: Docker 이미지를 빌드하고 AWS ECR에 푸시하는 작업
   build-and-push:
     # 이 작업이 실행될 가상 환경을 지정합니다. (최신 우분투)
     runs-on: ubuntu-latest
+    # 작업의 출력을 정의하여 다른 작업에서 사용할 수 있도록 합니다.
+    outputs:
+      ecr_image_uri: ${{ steps.build-image.outputs.image }}
     steps:
       # 1-1. 소스 코드 체크아웃
-      # GitHub Repository에 있는 코드를 가상 환경으로 가져옵니다.
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      # 1-2. Docker Hub 로그인
-      # GitHub Secrets에 저장된 Docker Hub 계정 정보를 사용하여 로그인합니다.
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      # 1-3. Docker 이미지 빌드 및 푸시
-      # Dockerfile을 사용하여 이미지를 빌드하고, Docker Hub에 푸시합니다.
-      # 이미지 태그는 고유성을 위해 Git 커밋 해시(SHA)를 사용합니다.
-      - name: Build and push Docker image
-        run: |
-          cd backend
-          docker buildx build --file Dockerfile \
-            --tag ${{ secrets.DOCKER_USERNAME }}/onpremise-webservice:${{ github.sha }} \
-            --push .
-
-  # 2. CD: 운영 서버에 접속하여 최신 버전으로 배포하는 작업
-  deploy:
-    # 'build-and-push' 작업이 성공적으로 완료되어야 이 작업이 실행됩니다.
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    steps:
-      # 2-1. AWS 자격 증명 설정
+      # 1-2. AWS 자격 증명 설정
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -51,54 +29,88 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # 2-2. 배포 스크립트 실행 (Git pull, .env 생성, 서비스 재시작)
+      # 1-3. Amazon ECR 로그인
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 1-4. Docker 이미지 빌드, 태그 및 푸시
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          # 이전 단계(login-ecr)의 출력인 레지스트리 주소를 사용합니다.
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          # 사용자가 생성한 ECR 리포지토리 이름으로 변경해야 합니다.
+          ECR_REPOSITORY: gpdus4605/migration-webservice
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          cd backend
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          # 다음 작업에서 사용할 수 있도록 이미지 URI를 출력으로 설정합니다.
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+  # 2. CD: 운영 서버에 접속하여 최신 버전으로 배포하는 작업
+  deploy:
+    # 'build-and-push' 작업이 성공적으로 완료되어야 이 작업이 실행됩니다.
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      # 2-1. AWS 자격 증명 설정 (SSM 실행을 위해 필요)
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # 2-2. 배포 스크립트 실행
       - name: Execute deployment script
+        env:
+          # build-and-push 작업의 출력을 가져옵니다.
+          ECR_IMAGE_URI: ${{ needs.build-and-push.outputs.ecr_image_uri }}
         run: |
           # .env 파일 내용을 Base64로 인코딩합니다.
           ENCODED_ENV=$(echo "${{ secrets.ENV_FILE_CONTENT }}" | base64 -w 0)
+          
+          # deploy.sh 스크립트에 전달할 ECR 이미지 URI
+          # 셸 주입 공격을 방지하기 위해 작은따옴표로 감쌉니다.
+          ECR_IMAGE_URI_ARG="'${{ env.ECR_IMAGE_URI }}'"
 
-          # EC2 인스턴스에서 실행할 셸 스크립트를 하나의 문자열로 정의합니다.
-          # 원격지에서 확장될 변수는 $ 대신 \$로 이스케이프 처리합니다.
+          # EC2 인스턴스에서 실행할 셸 스크립트를 정의합니다.
           REMOTE_SCRIPT=$(cat <<EOF
           set -e
           echo "### Starting deployment script on EC2 instance."
 
-          # Define variables for clarity. These are expanded on the remote host.
           APP_USER='${{ secrets.SSH_USERNAME }}'
           TARGET_DIR="/home/\$APP_USER/onpremise-webservice"
 
-          # Part 0: Fix permissions. This is the most important step.
           echo "### Ensuring correct ownership of \$TARGET_DIR..."
           chown -R \$APP_USER:\$APP_USER "\$TARGET_DIR" || true
 
-          # Part 1: Clone or Pull, running as the correct user.
           if ! sudo -u \$APP_USER test -d "\$TARGET_DIR"; then
             echo "### Cloning repository..."
             sudo -u \$APP_USER git clone "https://github.com/${{ github.repository }}.git" "\$TARGET_DIR"
           else
-            echo "### Setting remote URL to ensure it's correct..."
+            echo "### Setting remote URL..."
             sudo -u \$APP_USER git -C "\$TARGET_DIR" remote set-url origin "https://github.com/${{ github.repository }}.git"
             echo "### Pulling latest code..."
             sudo -u \$APP_USER git -C "\$TARGET_DIR" pull origin main
           fi
 
-          # Part 2: Create the .env file as the correct user.
           echo "### Creating .env file..."
           echo "$ENCODED_ENV" | base64 --decode | sudo -u \$APP_USER tee "\$TARGET_DIR/.env" > /dev/null
 
-          # Part 3: Run the deployment as root.
           echo "### Running deployment script as root..."
           cd "\$TARGET_DIR/backend"
-          export GITHUB_SHA="${{ github.sha }}"
-          export SLACK_WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL }}"
-          bash deploy.sh
+          # deploy.sh에 ECR 이미지 URI를 인자로 전달합니다.
+          bash deploy.sh $ECR_IMAGE_URI_ARG
 
           echo "### Deployment script finished."
           EOF
           )
 
           # AWS CLI에 전달할 ssm-params.json 파일을 생성합니다.
-          # jq를 사용하여 REMOTE_SCRIPT를 JSON에 안전하게 삽입합니다.
           jq -n --arg script "$REMOTE_SCRIPT" \
             --argjson instance_ids '["${{ secrets.AWS_INSTANCE_ID }}"]' \
             '{ "DocumentName": "AWS-RunShellScript", "InstanceIds": $instance_ids, "Parameters": { "commands": [$script] } }' \
@@ -107,14 +119,12 @@ jobs:
           echo "### Generated ssm-params.json:"
           cat ssm-params.json
 
-          # --cli-input-json 옵션을 사용하여 원격 스크립트를 실행합니다.
           COMMAND_ID=$(aws ssm send-command \
             --cli-input-json file://ssm-params.json \
             --output text --query "Command.CommandId")
 
           echo "SSM Command ID for deployment: $COMMAND_ID"
 
-          # 명령이 끝날 때까지 대기하고, 실패 시 로그를 가져옵니다.
           if ! aws ssm wait command-executed --command-id "$COMMAND_ID" --instance-id "${{ secrets.AWS_INSTANCE_ID }}"; then
             echo "--- Deployment failed. Fetching logs from SSM ---"
             aws ssm get-command-invocation \

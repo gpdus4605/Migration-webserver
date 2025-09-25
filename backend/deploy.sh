@@ -4,42 +4,59 @@ set -x
 # 스크립트 실행 중 오류가 발생하면 즉시 중단하도록 설정합니다.
 set -e
 
+# GitHub Actions에서 전달받은 ECR 이미지 URI를 변수에 할당합니다.
+ECR_IMAGE_URI=$1
+
+# ECR_IMAGE_URI가 비어있는 경우 오류를 출력하고 스크립트를 종료합니다.
+if [ -z "$ECR_IMAGE_URI" ]; then
+  echo "Error: ECR Image URI not provided." >&2
+  exit 1
+fi
+
 # Nginx 로그를 저장할 디렉토리를 생성하고 권한을 설정합니다.
 echo "### Creating and setting permissions for log directory..."
 mkdir -p log/nginx
 chmod 777 log/nginx
 
-
-# GITHUB_SHA는 GitHub Actions에서 환경 변수로 전달됩니다.
-echo "### Using GITHUB_SHA: ${GITHUB_SHA}"
-
+# .env 파일 존재 여부를 확인합니다.
 echo "### Verifying .env file..."
-if [ -f .env ]; then
-  echo ".env file exists."
-  cat .env
-else
-  echo ".env file does NOT exist! It should have been copied via scp." >&2
+if [ ! -f .env ]; then
+  echo ".env file does NOT exist!" >&2
   exit 1
 fi
 
-# GitHub Actions에서 빌드한 최신 이미지를 받아옵니다.
-echo "### Pulling the latest docker images..."
-docker pull gpdus4605/onpremise-webservice:${GITHUB_SHA}
+# AWS CLI가 설치되어 있는지 확인하고, 없으면 설치합니다.
+echo "### Checking for AWS CLI..."
+if ! command -v aws &> /dev/null; then
+    echo "AWS CLI not found, installing..."
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    unzip -q awscliv2.zip
+    sudo ./aws/install
+    rm -rf awscliv2.zip aws
+fi
 
-# docker-compose.override.yml 파일을 생성하여 api 서비스의 이미지를 동적으로 지정합니다.
-echo "### Creating docker-compose.override.yml..."
-cat <<EOF > docker-compose.override.yml
-services:
-  api:
-    image: gpdus4605/onpremise-webservice:${GITHUB_SHA}
-EOF
+# ECR 이미지 URI에서 리전과 레지스트리 주소를 추출합니다.
+AWS_REGION=$(echo $ECR_IMAGE_URI | cut -d'.' -f4)
+ECR_REGISTRY=$(echo $ECR_IMAGE_URI | cut -d'/' -f1)
 
+# AWS ECR에 로그인합니다.
+echo "### Logging in to Amazon ECR..."
+aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+
+# docker-compose.yml에서 사용할 수 있도록 ECR_IMAGE_URI 변수를 export합니다.
+export ECR_IMAGE_URI
+
+echo "### Pulling the latest api image from ECR..."
+# docker-compose.yml에 명시된 `api` 서비스의 이미지를 가져옵니다.
+docker-compose -f docker-compose.yml -p backend pull api
+
+# 충돌을 방지하기 위해 기존 컨테이너를 삭제합니다.
 echo "### Removing conflicting containers to ensure a clean start..."
 docker rm -f my-api my-nginx my-log-processor || true
 
 echo "### Restarting services with the new image..."
-# -f 옵션으로 docker-compose.yml과 docker-compose.override.yml을 모두 지정합니다.
-docker-compose -f docker-compose.yml -f docker-compose.override.yml -p backend up -d --no-deps nginx api log-processor
+# `docker-compose.override.yml` 없이 `docker-compose.yml`만 사용합니다.
+docker-compose -f docker-compose.yml -p backend up -d --no-deps nginx api log-processor
 
 # api 컨테이너가 완전히 시작될 때까지 잠시 대기합니다.
 echo "### Waiting for services to be ready..."
@@ -49,4 +66,4 @@ sleep 10
 echo "### Cleaning up old images..."
 docker image prune -af || true
 
-echo "### Deployment finished successfully!"
+echo "### Deployment finished successfully with image: $ECR_IMAGE_URI"
