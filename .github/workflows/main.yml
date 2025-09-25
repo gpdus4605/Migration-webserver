@@ -107,6 +107,8 @@ jobs:
 
           echo "### Running deployment script as root..."
           cd "\$TARGET_DIR/backend"
+          # SLACK_WEBHOOK_URL을 환경 변수로 내보내 docker-compose에서 사용할 수 있도록 합니다.
+          export SLACK_WEBHOOK_URL='${{ secrets.SLACK_WEBHOOK_URL }}'
           # deploy.sh에 ECR 이미지 URI를 인자로 전달합니다.
           bash deploy.sh '$ECR_IMAGE_URI'
 

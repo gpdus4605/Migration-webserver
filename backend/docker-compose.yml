@@ -81,8 +81,6 @@ services:
     environment:
       # docker-compose 실행 시점의 환경 변수 값을 컨테이너 내부로 전달합니다.
       - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
-    env_file:
-      - .env
     depends_on:
       - api
 
