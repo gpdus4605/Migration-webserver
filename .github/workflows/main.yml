@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     # 작업의 출력을 정의하여 다른 작업에서 사용할 수 있도록 합니다.
     outputs:
-      ecr_image_uri: ${{ steps.build-image.outputs.image }}
+      image_tag: ${{ github.sha }}
     steps:
       # 1-1. 소스 코드 체크아웃
       - name: Checkout source code
@@ -47,8 +47,6 @@ jobs:
           cd backend
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          # 다음 작업에서 사용할 수 있도록 이미지 URI를 출력으로 설정합니다.
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
   # 2. CD: 운영 서버에 접속하여 최신 버전으로 배포하는 작업
   deploy:
@@ -64,19 +62,26 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # 2-2. 배포 스크립트 실행
+      # 2-2. Amazon ECR 로그인 (레지스트리 주소 확보용)
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 2-3. 배포 스크립트 실행
       - name: Execute deployment script
         env:
-          # build-and-push 작업의 출력을 가져옵니다.
-          ECR_IMAGE_URI: ${{ needs.build-and-push.outputs.ecr_image_uri }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: gpdus4605/migration-webservice
         run: |
+          # ECR 이미지 URI를 여기서 재구성합니다.
+          ECR_IMAGE_URI="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          echo "### DEBUG: Reconstructed ECR_IMAGE_URI is: [$ECR_IMAGE_URI]"
+
           # .env 파일 내용을 Base64로 인코딩합니다.
-          echo "### DEBUG: ECR_IMAGE_URI from env is: [$ECR_IMAGE_URI]"
-          echo "### DEBUG: Full needs context is: ${{ toJSON(needs) }}"
           ENCODED_ENV=$(echo "${{ secrets.ENV_FILE_CONTENT }}" | base64 -w 0)
           
           # EC2 인스턴스에서 실행할 셸 스크립트를 정의합니다.
-          # heredoc 내부에서 $ECR_IMAGE_URI 변수가 확장되도록 하여 deploy.sh에 인자로 전달합니다.
           REMOTE_SCRIPT=$(cat <<EOF
           set -e
           echo "### Starting deployment script on EC2 instance."
