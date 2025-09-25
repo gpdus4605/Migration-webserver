@@ -60,8 +60,7 @@ services:
   log-processor:
     build: .
     container_name: my-log-processor
-    entrypoint: sh -c
-    command: "while true; do python log_processor.py; echo 'Log processor ran. Sleeping for 10 minutes.'; sleep 600; done"
+    entrypoint: /bin/sh -c "while true; do python log_processor.py; echo 'Log processor ran. Sleeping for 10 minutes.'; sleep 600; done"
     volumes:
       # Nginx 로그 처리를 위해 호스트의 로그 디렉토리를 마운트합니다.
       - ./log/nginx:/app/log/nginx
